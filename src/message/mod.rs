@@ -1,6 +1,7 @@
 use crate::message::header::extract_header_bits_from_buffer;
 
 use header::Header;
+use question::Question;
 
 pub mod header;
 pub mod question;
@@ -40,35 +41,58 @@ impl From<u16> for MessageType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Message {
     source: Vec<u8>,
-    // might be useful to store the original buffer
     header: Header,
-    // question: question::Question,
+    questions: Vec<Question>,
 }
 
 impl From<&[u8]> for Message {
-    fn from(buffer: &[u8]) -> Self {
+    fn from(mut buffer: &[u8]) -> Self {
         let source = buffer.clone().to_owned();
-        let (header_bits, buffer) = extract_header_bits_from_buffer(buffer);
+
+        let (header_bits, rest) = extract_header_bits_from_buffer(buffer);
+        buffer = rest;
         let header_bits: &[u8; header::HEADER_BIT_SIZE / 8] = header_bits.try_into().unwrap();
+        let header = Header::from(header_bits);
+
+        let questions = (0..header.questions_count)
+            .map(|_| {
+                let (question, rest) = Question::from_buffer(buffer);
+                buffer = rest;
+                question
+            })
+            .into_iter()
+            .collect();
+
+        // println!("after buffer: {:?}", buffer);
+
         Message {
             source,
-            header: Header::from(header_bits),
+            header,
+            questions,
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::message::header::{QueryType, ResponseCode};
+    use crate::{
+        domain_name::DomainName,
+        message::header::{QueryType, ResponseCode},
+        message::question::{Class, Type},
+        resource_record::Type as RRType,
+    };
 
     use super::*;
 
     const BUFFER: &[u8] = &[
-        226, 44, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 4, 119, 112, 97, 100, 11, 110, 117, 109, 101, 114,
-        105, 99, 97, 98, 108, 101, 2, 102, 114, 0, 0, 1, 0, 1,
+        226, 44, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, //header
+        4, 119, 112, 97, 100, 11, 110, 117, 109, 101, 114, 105, 99, 97, 98, 108, 101, 2, 102, 114,
+        0, // questions
+        0, 1, // question type
+        0, 1, // question class
     ];
 
     #[test]
@@ -91,6 +115,22 @@ mod tests {
             additional_count: 0,
         };
 
-        assert!(m.header == expected_header);
+        let expected_questions = vec![Question {
+            name: DomainName {
+                labels: vec!["wpad".into(), "numericable".into(), "fr".into(), "".into()],
+            },
+            type_: Type::RRType(RRType::A),
+            class: Class::IN,
+        }];
+
+        let expected_message = Message {
+            source: BUFFER.to_owned(),
+            header: expected_header,
+            questions: expected_questions,
+        };
+
+        assert_eq!(expected_message, m);
+
+        println!("{:?}", m);
     }
 }

@@ -1,21 +1,32 @@
-use crate::resource_record::Type as RRType;
+use crate::{
+    domain_name::DomainName, resource_record::Type as RRType,
+    utils::extract_next_sixteen_bits_from_buffer,
+};
 
+#[derive(Debug, PartialEq)]
 pub struct Question {
-    name: String,
-    type_: Type,
-    class: Class,
+    pub name: DomainName,
+    pub type_: Type,
+    pub class: Class,
 }
 
 impl Question {
-    fn from_buffer<'a>(bytes: &'a [u8]) -> (Self, &'a [u8]) {
-        // let name = Name::from(bytes);
-        let name = String::from("");
-        let type_ = Type::from(0);
-        let class = Class::from(0);
-        (Question { name, type_, class }, &[])
+    pub fn from_buffer<'a>(buffer: &'a [u8]) -> (Self, &'a [u8]) {
+        let (name, buffer) = DomainName::from_buffer(buffer);
+        let (type_bytes, buffer) = extract_next_sixteen_bits_from_buffer(buffer);
+        let (class_bytes, buffer) = extract_next_sixteen_bits_from_buffer(buffer);
+        (
+            Question {
+                name,
+                type_: Type::from(type_bytes),
+                class: Class::from(class_bytes),
+            },
+            buffer,
+        )
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub enum Type {
     RRType(RRType),
     AXFR,  // request for transfer of entire zone
@@ -37,6 +48,7 @@ impl From<u16> for Type {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub enum Class {
     IN, // the Internet
     CS, // the CSNET class (Obsolete - use IN)

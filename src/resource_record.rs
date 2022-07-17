@@ -1,10 +1,10 @@
 // RR: resource record
 // see: https://datatracker.ietf.org/doc/html/rfc1035#section-3.2
 
-use crate::message::question::Class as QuestionClass;
+use crate::{domain_name::DomainName, message::question::Class as QuestionClass};
 
 pub struct ResourceRecord {
-    name: String,
+    name: DomainName,
     type_: Type,
     class: QuestionClass,
     ttl: TimeToLive,
@@ -16,6 +16,7 @@ type TimeToLive = u32;
 
 // *_OBS: obsolete
 // *_EXP: experimental
+#[derive(Debug, PartialEq)]
 pub enum Type {
     A,        // host address
     NS,       // authoritative name server

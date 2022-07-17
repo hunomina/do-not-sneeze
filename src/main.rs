@@ -5,6 +5,7 @@ use std::{net::UdpSocket, thread};
 use message::Message;
 use transport::{DNS_PORT, UDP_MAX_MESSAGE_SIZE};
 
+mod domain_name;
 mod message;
 mod resource_record;
 mod transport;
