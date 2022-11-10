@@ -23,7 +23,7 @@ impl DomainName {
         let mut labels = vec![];
         while let Some(x) = buffer.next() {
             if x == &0 {
-                labels.push(Label::new());
+                labels.push(Label::new()); // this allows us to add the ending . in the name
                 break;
             }
 
@@ -40,9 +40,8 @@ mod tests {
 
     #[test]
     fn test_domain_name_from_buffer() {
-        let (domain_name, bytes) = DomainName::from_buffer(&[
-            0x03, b'a', b'b', b'c', 0x03, b'd', b'e', b'f', 0x02, b'g', b'h', 0,
-        ]);
+        let (domain_name, rest) =
+            DomainName::from_buffer(&[3, b'a', b'b', b'c', 3, b'd', b'e', b'f', 2, b'g', b'h', 0]);
         assert_eq!(
             domain_name.labels,
             vec![
@@ -52,14 +51,14 @@ mod tests {
                 Label::new()
             ]
         );
-        assert_eq!(bytes, &[]);
+        assert_eq!(rest, &[]);
     }
 
     #[test]
     fn test_parse_and_return_rest() {
         const BUFFER: &[u8] = &[
-            4, 119, 112, 97, 100, 11, 110, 117, 109, 101, 114, 105, 99, 97, 98, 108, 101, 2, 102,
-            114, 0, // question
+            4, b'w', b'p', b'a', b'd', 11, b'n', b'u', b'm', b'e', b'r', b'i', b'c', b'a', b'b',
+            b'l', b'e', 2, b'f', b'r', 0, // question domain name
             0, 1, // question type
             0, 1, // question class
         ];
