@@ -69,3 +69,29 @@ impl From<u16> for Class {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_question_from_buffer() {
+        let buffer = &[
+            4, 119, 112, 97, 100, 11, 110, 117, 109, 101, 114, 105, 99, 97, 98, 108, 101, 2, 102,
+            114, 0, // domain name
+            0, 1, // question type
+            0, 1, // question class
+        ];
+        let (question, rest) = Question::from_buffer(buffer);
+        let expected_question = Question {
+            name: DomainName {
+                labels: vec!["wpad".into(), "numericable".into(), "fr".into(), "".into()],
+            },
+            type_: Type::RRType(RRType::A),
+            class: Class::IN,
+        };
+
+        assert_eq!(expected_question, question);
+        assert_eq!(rest, &[]);
+    }
+}
