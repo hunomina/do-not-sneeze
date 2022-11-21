@@ -150,8 +150,6 @@ pub fn extract_header_bits_from_buffer(buffer: &[u8]) -> (&[u8], &[u8]) {
 
 #[cfg(test)]
 mod tests {
-    use crate::message::header::{QueryType, ResponseCode};
-
     use super::*;
 
     const BUFFER: &[u8; 12] = &[226, 44, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0];

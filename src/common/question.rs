@@ -1,5 +1,5 @@
 use crate::{
-    domain_name::DomainName, resource_record::Type as RRType,
+    common::{domain_name::DomainName, resource_record::Type as RRType},
     utils::extract_next_sixteen_bits_from_buffer,
 };
 
@@ -12,7 +12,7 @@ pub struct Question {
 
 impl Question {
     pub fn from_buffer<'a>(buffer: &'a [u8]) -> (Self, &'a [u8]) {
-        let (name, buffer) = DomainName::from_buffer(buffer);
+        let (name, buffer) = DomainName::from_buffer(buffer, buffer);
         let (type_bytes, buffer) = extract_next_sixteen_bits_from_buffer(buffer);
         let (class_bytes, buffer) = extract_next_sixteen_bits_from_buffer(buffer);
         (
