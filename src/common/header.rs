@@ -65,9 +65,9 @@ impl From<&[u8; 12]> for Header {
         let (next_sixteen_bits, buffer) = buffer.split_at(2); // now buffer is [u8; 8]
         let next_sixteen_bits = concat_two_u8s(next_sixteen_bits[0], next_sixteen_bits[1]);
 
-        let qr = MessageType::from(next_sixteen_bits.clone());
-        let opcode = QueryType::from(next_sixteen_bits.clone());
-        let response_code = ResponseCode::from(next_sixteen_bits.clone());
+        let qr = MessageType::from(next_sixteen_bits);
+        let opcode = QueryType::from(next_sixteen_bits);
+        let response_code = ResponseCode::from(next_sixteen_bits);
 
         let authoritative_answer = next_sixteen_bits & IS_AUTHORITATIVE_ANSWER_BIT_MASK != 0;
         let truncated = next_sixteen_bits & IS_TRUNCATED_BIT_MASK != 0;
