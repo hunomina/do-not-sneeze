@@ -1,3 +1,5 @@
+use crate::utils::concat_two_u8s;
+
 const ALIAS_FLAG: u8 = 0b11000000;
 
 #[derive(PartialEq)]
@@ -36,8 +38,8 @@ impl DomainName {
 
             if byte_parity && x & ALIAS_FLAG == ALIAS_FLAG {
                 // take next byte, concat with current and counter detection flag on result to get 14th last bits
-                let alias_position_in_source = ((*x as u16) << 8 | *buffer.next().unwrap() as u16)
-                    & !((ALIAS_FLAG as u16) << 8);
+                let alias_position_in_source =
+                    concat_two_u8s(*x, *buffer.next().unwrap()) & !((ALIAS_FLAG as u16) << 8);
 
                 let alias =
                     &mut DomainName::from_source(source, alias_position_in_source as usize).labels;
@@ -66,7 +68,7 @@ impl DomainName {
 impl From<&str> for DomainName {
     fn from(s: &str) -> Self {
         let mut labels: Vec<String> = s.split('.').into_iter().map(|s| s.into()).collect();
-        if *labels.last().unwrap() != String::from("") {
+        if labels.last().unwrap().ne("") {
             labels.push(Label::new());
         }
         DomainName { labels }
@@ -141,9 +143,9 @@ mod tests {
             String::from("abc.def.gh."),
             DomainName {
                 labels: vec![
-                    Label::from("abc".to_string()),
-                    Label::from("def".to_string()),
-                    Label::from("gh".to_string()),
+                    Label::from("abc"),
+                    Label::from("def"),
+                    Label::from("gh"),
                     Label::new()
                 ]
             }
@@ -156,9 +158,9 @@ mod tests {
         assert_eq!(
             DomainName {
                 labels: vec![
-                    Label::from("abc".to_string()),
-                    Label::from("def".to_string()),
-                    Label::from("gh".to_string()),
+                    Label::from("abc"),
+                    Label::from("def"),
+                    Label::from("gh"),
                     Label::new()
                 ]
             },
@@ -171,9 +173,9 @@ mod tests {
         assert_eq!(
             DomainName {
                 labels: vec![
-                    Label::from("abc".to_string()),
-                    Label::from("def".to_string()),
-                    Label::from("gh".to_string()),
+                    Label::from("abc"),
+                    Label::from("def"),
+                    Label::from("gh"),
                     Label::new()
                 ]
             },

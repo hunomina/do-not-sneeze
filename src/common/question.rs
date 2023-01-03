@@ -11,7 +11,7 @@ pub struct Question {
 }
 
 impl Question {
-    pub fn from_buffer<'a>(buffer: &'a [u8]) -> (Self, &'a [u8]) {
+    pub fn from_buffer(buffer: &[u8]) -> (Self, &[u8]) {
         let (name, buffer) = DomainName::from_buffer(buffer, buffer);
         let (type_bytes, buffer) = extract_next_sixteen_bits_from_buffer(buffer);
         let (class_bytes, buffer) = extract_next_sixteen_bits_from_buffer(buffer);

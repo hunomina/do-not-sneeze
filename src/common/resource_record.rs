@@ -54,7 +54,7 @@ impl ResourceRecord {
 
         let (data, buffer) = buffer.split_at(resource_data_length as usize);
 
-        let resource_data = get_data_from_type_and_buffer(type_.clone(), data);
+        let resource_data = get_data_from_type_and_buffer(type_, data);
 
         (
             Self {
