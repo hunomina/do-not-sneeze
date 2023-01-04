@@ -26,41 +26,32 @@ impl DomainName {
         let mut buffer = bytes.into_iter();
         let mut labels = vec![];
 
-        // process start at byte 0 (even)
-        // for every byte that we read, this value needs to be inverted
-        let mut byte_parity = true;
-
         while let Some(x) = buffer.next() {
             if x == &0 {
                 labels.push(Label::new()); // this allows us to add the ending . in the name
                 break;
             }
 
-            if byte_parity && x & ALIAS_FLAG == ALIAS_FLAG {
+            if x & ALIAS_FLAG == ALIAS_FLAG {
                 // take next byte, concat with current and counter detection flag on result to get 14th last bits
                 let alias_position_in_source =
                     concat_two_u8s(*x, *buffer.next().unwrap()) & !((ALIAS_FLAG as u16) << 8);
 
-                let alias =
-                    &mut DomainName::from_source(source, alias_position_in_source as usize).labels;
-                labels.append(alias);
+                // read the alias from the source buffer and add its labels to the current label list
+                labels.append(
+                    &mut DomainName::from_source(source, alias_position_in_source as usize).labels,
+                );
                 return (DomainName { labels }, buffer.as_slice());
             }
 
-            let label = (0..*x)
-                .map(|_| {
-                    byte_parity = !byte_parity;
-                    *buffer.next().unwrap() as char
-                })
-                .collect();
+            let label = (0..*x).map(|_| *buffer.next().unwrap() as char).collect();
             labels.push(label);
-            byte_parity = !byte_parity; // invert byte parity before next iteration
         }
         (DomainName { labels }, buffer.as_slice())
     }
 
     fn from_source(source: &[u8], position: usize) -> Self {
-        let trimmed_source = &source.clone().to_vec()[position..];
+        let trimmed_source = &<&[u8]>::clone(&source).to_vec()[position..];
         DomainName::from_buffer(trimmed_source, source).0
     }
 }
@@ -116,7 +107,7 @@ mod tests {
             0, // question domain name
             0, 1, // question type
             0, 1, // question class
-            192, 12, // alias to question named
+            192, 12, // pointer to question name
             0, 1, // response type
             0, 1, // response class
             0, 0, 0, 244, //ttl
@@ -135,6 +126,95 @@ mod tests {
         );
 
         assert_eq!(original_name, aliased_name);
+        assert_eq!(DomainName::from("google.com"), aliased_name);
+    }
+
+    #[test]
+    fn test_read_alias_with_odd_lenght_prefix() {
+        let buffer_containing_alias: &[u8] = &[
+            226, 44, 129, 128, 0, 1, 0, 1, 0, 0, 0, 0, // header
+            6, b'g', b'o', b'o', b'g', b'l', b'e', 3, b'c', b'o', b'm',
+            0, // question domain name
+            0, 1, // question type
+            0, 1, // question class
+            3, b'w', b'w', b'w', // alias prefix
+            192, 12, // pointer to question name
+            0, 1, // response type
+            0, 1, // response class
+            0, 0, 0, 244, //ttl
+            0, 4, // response data length
+            216, 58, 214, 174, // response data
+        ];
+
+        let (aliased_name, _) = DomainName::from_buffer(
+            &buffer_containing_alias[28..], // 28 is the position at which the alias to the original name is
+            buffer_containing_alias,
+        );
+
+        assert_eq!(DomainName::from("www.google.com"), aliased_name);
+    }
+
+    #[test]
+    fn test_read_alias_with_even_lenght_prefix() {
+        let buffer_containing_alias: &[u8] = &[
+            226, 44, 129, 128, 0, 1, 0, 1, 0, 0, 0, 0, // header
+            6, b'g', b'o', b'o', b'g', b'l', b'e', 3, b'c', b'o', b'm',
+            0, // question domain name
+            0, 1, // question type
+            0, 1, // question class
+            4, b'i', b'n', b'f', b'o', // alias prefix
+            192, 12, // pointer to question name
+            0, 1, // response type
+            0, 1, // response class
+            0, 0, 0, 244, //ttl
+            0, 4, // response data length
+            216, 58, 214, 174, // response data
+        ];
+
+        let (aliased_name, _) = DomainName::from_buffer(
+            &buffer_containing_alias[28..], // 28 is the position at which the alias to the original name is
+            buffer_containing_alias,
+        );
+
+        assert_eq!(DomainName::from("info.google.com"), aliased_name);
+    }
+
+    #[test]
+    fn test_read_double_alias() {
+        let buffer_containing_alias: &[u8] = &[
+            226, 44, 129, 128, 0, 1, 0, 2, 0, 0, 0, 0, // header
+            6, b'g', b'o', b'o', b'g', b'l', b'e', 3, b'c', b'o', b'm',
+            0, // question domain name
+            0, 1, // question type
+            0, 1, // question class
+            4, b'i', b'n', b'f', b'o', // first alias prefix
+            192, 12, // pointer to question name
+            0, 1, // response type
+            0, 1, // response class
+            0, 0, 0, 244, //ttl
+            0, 4, // response data length
+            216, 58, 214, 174, // response data
+            3, b'w', b'w', b'w', // second alias prefix
+            192, 28, // pointer to first alias
+            0, 1, // response type
+            0, 1, // response class
+            0, 0, 0, 244, //ttl
+            0, 4, // response data length
+            216, 58, 214, 174, // response data
+        ];
+
+        let (first_alias, _) = DomainName::from_buffer(
+            &buffer_containing_alias[28..], // 28 is the position at which the alias to the original name is
+            buffer_containing_alias,
+        );
+
+        let (second_alias, _) = DomainName::from_buffer(
+            &buffer_containing_alias[49..], // 28 is the position at which the alias to the original name is
+            buffer_containing_alias,
+        );
+
+        assert_eq!(DomainName::from("info.google.com"), first_alias);
+        assert_eq!(DomainName::from("www.info.google.com"), second_alias);
     }
 
     #[test]
@@ -182,7 +262,4 @@ mod tests {
             DomainName::from("abc.def.gh")
         )
     }
-
-    // todo : test alias pointing to another alias
-    // todo : test name + following alias
 }
