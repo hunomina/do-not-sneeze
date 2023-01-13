@@ -74,7 +74,8 @@ impl ResourceRecord {
 // *_EXP: experimental
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Type {
-    A,        // host address
+    A,        // IPv4 host address
+    AAAA,     // IPv6 host address
     NS,       // authoritative name server
     MD_OBS,   // mail destination, obsolete, use MX instead
     MF_OBS,   // mail forwarder, obsolete, use MX instead
@@ -90,6 +91,8 @@ pub enum Type {
     MINFO,    // mailbox information
     MX,       // mail exchange
     TXT,      // text strings
+    SVCB,     // Service binding
+    HTTPS,    // HTTPS binding
 }
 
 impl From<u16> for Type {
@@ -111,6 +114,9 @@ impl From<u16> for Type {
             14 => Self::MINFO,
             15 => Self::MX,
             16 => Self::TXT,
+            28 => Self::AAAA,
+            64 => Self::SVCB,
+            65 => Self::HTTPS,
             _ => panic!("Unknown RR type: {}", value),
         }
     }

@@ -37,13 +37,15 @@ pub enum Type {
 
 impl From<u16> for Type {
     fn from(value: u16) -> Self {
-        match value {
-            1..=16 => Type::RRType(RRType::from(value)),
-            252 => Self::AXFR,
-            253 => Self::MAILB,
-            254 => Self::MAILA,
-            255 => Self::ALL,
-            _ => panic!("Unknown QType: {}", value),
+        match RRType::try_from(value) {
+            Ok(rr_type) => Type::RRType(rr_type),
+            Err(_) => match value {
+                252 => Self::AXFR,
+                253 => Self::MAILB,
+                254 => Self::MAILA,
+                255 => Self::ALL,
+                _ => panic!("Unknown QType: {}", value),
+            },
         }
     }
 }
