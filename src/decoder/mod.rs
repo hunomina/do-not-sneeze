@@ -1,7 +1,10 @@
+mod domain_name;
+mod header;
+mod question;
+mod resource_record;
+
 use crate::common::{
-    header::{self, extract_header_bits_from_buffer, Header},
-    question::Question,
-    resource_record::ResourceRecord,
+    header::{extract_header_bits_from_buffer, HEADER_BIT_SIZE},
     Message,
 };
 
@@ -14,19 +17,20 @@ pub enum DecodingError {
     BOOM,
 }
 
+#[derive(Clone, Copy)]
 pub struct MessageDecoder {}
 
 impl Decoder for MessageDecoder {
     fn decode(&self, buffer: &[u8]) -> Result<Message, DecodingError> {
-        let source = buffer.clone();
+        let source = buffer;
 
         let (header_bits, mut buffer) = extract_header_bits_from_buffer(buffer);
-        let header_bits: &[u8; header::HEADER_BIT_SIZE / 8] = header_bits.try_into().unwrap();
-        let header = Header::from(header_bits);
+        let header_bits: &[u8; HEADER_BIT_SIZE / 8] = header_bits.try_into().unwrap();
+        let header = header::decode(header_bits);
 
         let questions = (0..header.questions_count)
             .map(|_| {
-                let (question, rest) = Question::from_buffer(buffer);
+                let (question, rest) = question::decode(buffer);
                 buffer = rest;
                 question
             })
@@ -34,7 +38,7 @@ impl Decoder for MessageDecoder {
 
         let answers = (0..header.answers_count)
             .map(|_| {
-                let (rr, rest) = ResourceRecord::from_buffer(buffer, source);
+                let (rr, rest) = resource_record::decode(buffer, source);
                 buffer = rest;
                 rr
             })
@@ -42,7 +46,7 @@ impl Decoder for MessageDecoder {
 
         let authorities = (0..header.authority_count)
             .map(|_| {
-                let (rr, rest) = ResourceRecord::from_buffer(buffer, source);
+                let (rr, rest) = resource_record::decode(buffer, source);
                 buffer = rest;
                 rr
             })
@@ -50,7 +54,7 @@ impl Decoder for MessageDecoder {
 
         let additionnals = (0..header.additional_count)
             .map(|_| {
-                let (rr, rest) = ResourceRecord::from_buffer(buffer, source);
+                let (rr, rest) = resource_record::decode(buffer, source);
                 buffer = rest;
                 rr
             })
@@ -70,14 +74,9 @@ impl Decoder for MessageDecoder {
 mod tests {
     use crate::common::{
         domain_name::DomainName,
-        question::{Class, Type},
-        resource_record::Type as RRType,
-        MessageType,
-    };
-
-    use super::{
-        header::{QueryType, ResponseCode},
-        MessageDecoder,
+        header::{Header, MessageType, QueryType, ResponseCode},
+        question::{Class, Question, Type},
+        resource_record::{ResourceRecord, Type as RRType},
     };
 
     use super::*;
