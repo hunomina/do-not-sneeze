@@ -16,6 +16,10 @@ pub fn concat_four_u8s(a: u8, b: u8, c: u8, d: u8) -> u32 {
     (a as u32) << 24 | (b as u32) << 16 | (c as u32) << 8 | d as u32
 }
 
+pub fn split_two_bytes(n: u16) -> (u8, u8) {
+    ((n >> 8) as u8, n as u8)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -56,5 +60,13 @@ mod tests {
         let expected = 0b01110101101101001001110100011101; // manual concatenation of the numbers above
 
         assert_eq!(expected, concat_four_u8s(a, b, c, d));
+    }
+
+    #[test]
+    fn test_split_two_bytes() {
+        let n = 0b0101101011010111;
+        let expected = (0b01011010, 0b11010111);
+
+        assert_eq!(expected, split_two_bytes(n));
     }
 }
