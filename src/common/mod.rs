@@ -45,7 +45,7 @@ impl From<u16> for MessageType {
 #[derive(Debug, PartialEq)]
 pub struct Message {
     header: Header,
-    questions: Vec<Question>,
+    pub questions: Vec<Question>,
     answers: Vec<ResourceRecord>,
     authorities: Vec<ResourceRecord>,
     additionnals: Vec<ResourceRecord>,
@@ -66,5 +66,9 @@ impl Message {
             authorities,
             additionnals,
         }
+    }
+
+    fn is_query(&self) -> bool {
+        self.header.qr == MessageType::Query
     }
 }

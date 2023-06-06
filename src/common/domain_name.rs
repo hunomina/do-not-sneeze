@@ -1,15 +1,17 @@
+use std::fmt::Display;
+
 use crate::utils::concat_two_u8s;
 
 const ALIAS_FLAG: u8 = 0b11000000;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone, Eq, Hash)]
 pub struct DomainName {
     pub labels: Vec<Label>,
 }
 
-impl DomainName {
-    pub fn to_string(&self) -> String {
-        self.labels.join(".")
+impl Display for DomainName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.labels.join("."))
     }
 }
 

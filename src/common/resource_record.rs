@@ -10,11 +10,11 @@ use crate::{
 
 type TimeToLive = u32;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ResourceRecord {
-    name: DomainName,
-    type_: Type,
-    class: QuestionClass,
+    pub name: DomainName,
+    pub type_: Type,
+    pub class: QuestionClass,
     ttl: TimeToLive,
     resource_data_length: u16,
     resource_data: String,
@@ -57,14 +57,7 @@ impl ResourceRecord {
         let resource_data = get_data_from_type_and_buffer(type_, data);
 
         (
-            Self {
-                name,
-                type_,
-                class,
-                ttl,
-                resource_data_length,
-                resource_data,
-            },
+            Self::new(name, type_, class, ttl, resource_data_length, resource_data),
             buffer,
         )
     }

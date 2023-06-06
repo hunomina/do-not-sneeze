@@ -26,7 +26,7 @@ impl Question {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Type {
     RRType(RRType),
     AXFR,  // request for transfer of entire zone
@@ -50,7 +50,7 @@ impl From<u16> for Type {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Class {
     IN, // the Internet
     CS, // the CSNET class (Obsolete - use IN)

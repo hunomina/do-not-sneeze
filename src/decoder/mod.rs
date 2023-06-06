@@ -14,6 +14,7 @@ pub enum DecodingError {
     BOOM,
 }
 
+#[derive(Clone, Copy)]
 pub struct MessageDecoder {}
 
 impl Decoder for MessageDecoder {
