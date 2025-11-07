@@ -14,7 +14,7 @@ For educational purposes, this project aims to use as little external dependenci
 - **Multi-threaded Server**: Handles concurrent DNS queries using thread-per-request model
 - **Smart Caching**: Two-tier storage with in-memory cache and upstream DNS fallback
 - **Upstream DNS Integration**: Automatically queries upstream DNS (e.g., 8.8.8.8) for unknown domains
-- **Resource Record Support**: A and TXT records fully implemented, 19 additional record types defined
+- **Resource Record Support**: A, AAAA, and TXT records fully implemented, 18 additional record types defined
 - **RFC 1035 Compliant**: Proper handling of DNS headers, questions, and resource records
 - **Domain Name Compression**: Efficient domain name encoding with label compression support
 
@@ -46,15 +46,15 @@ src/
 | Type | Code | Status |
 |------|------|--------|
 | **A** | 1 | ✅ Fully implemented (IPv4 addresses) |
+| **AAAA** | 28 | ✅ Fully implemented (IPv6 addresses, RFC 3596) |
 | **TXT** | 16 | ✅ Fully implemented (with RFC 1035 character-string format) |
-| AAAA | 28 | ⚠️ Defined, encoding/decoding not implemented |
 | NS | 2 | ⚠️ Defined, encoding/decoding not implemented |
 | CNAME | 5 | ⚠️ Defined, encoding/decoding not implemented |
 | SOA | 6 | ⚠️ Defined, encoding/decoding not implemented |
 | MX | 15 | ⚠️ Defined, encoding/decoding not implemented |
 | PTR | 12 | ⚠️ Defined, encoding/decoding not implemented |
 
-Plus 13 additional record types (HINFO, MINFO, WKS, SVCB, HTTPS, OPT, etc.)
+Plus 18 additional record types (NS, CNAME, SOA, MX, PTR, HINFO, MINFO, WKS, SVCB, HTTPS, OPT, etc.)
 
 ## Getting Started
 
@@ -82,6 +82,9 @@ cargo test
 ```bash
 # Query A record (use +noedns to avoid EDNS)
 dig @127.0.0.1 +noedns google.com A
+
+# Query AAAA record (IPv6)
+dig @127.0.0.1 +noedns google.com AAAA
 
 # Query TXT record
 dig @127.0.0.1 +noedns google.com TXT
@@ -116,7 +119,7 @@ dig @127.0.0.1 +noedns google.com TXT
 ## Next features in the pipes
 
 - [ ] EDNS(0) support
-- [ ] Additional record type implementations (AAAA, MX, NS, CNAME, etc.)
+- [ ] Additional record type implementations (MX, NS, CNAME, etc.)
 - [ ] TTL-based cache expiration
 
 ## License
