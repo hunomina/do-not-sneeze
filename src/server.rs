@@ -53,9 +53,8 @@ where
                     let storage = Arc::clone(&storage);
 
                     thread::spawn(move || {
-                        // println!("buffer {:?}", &buf[..amt]);
                         let message = decoder.decode(&buf[..amt]).unwrap();
-                        // println!("message: {:?}", message);
+
                         let answers = message
                             .questions
                             .iter()
@@ -67,13 +66,14 @@ where
                                     .unwrap_or_default()
                             })
                             .collect::<Vec<_>>();
-                        // println!("answers: {:?}", answers);
 
                         let mut response = message.into_response();
                         response.set_answers(answers);
 
                         let encoded_response = encoder.encode(response);
-                        // println!("response {:?}", encoded_response.as_slice());
+
+                        // todo: check if encoded_response is bigger than UDP_MAX_MESSAGE_SIZE + check if EDNS is enabled
+                        // if it is the case, we need to send an empty response
 
                         socket_clone.send_to(&encoded_response, src).unwrap();
                     });
