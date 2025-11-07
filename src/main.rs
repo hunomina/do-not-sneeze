@@ -1,49 +1,54 @@
 // https://datatracker.ietf.org/doc/html/rfc1035
 
-use std::net::UdpSocket;
-
 use decoder::MessageDecoder;
 use encoder::MessageEncoder;
 use server::Server;
-use transport::UDP_MAX_MESSAGE_SIZE;
 
-use crate::storage::InMemoryResourceRecordRepository;
+use crate::{
+    common::{
+        domain_name::DomainName,
+        resource_record::{ResourceRecord, Type},
+    },
+    storage::{InMemoryResourceRecordRepository, fallback::FallbackRepository},
+};
 
 mod common;
 mod decoder;
 mod encoder;
-mod resource_data;
 mod server;
 mod storage;
 mod transport;
 mod utils;
 
 fn main() {
-    Server::new(
-        MessageDecoder {},
-        MessageEncoder {},
-        InMemoryResourceRecordRepository::new(),
-    )
-    .run();
-}
+    let mut in_memory_repository = InMemoryResourceRecordRepository::new();
 
-fn send_dns_request_to(request: &[u8], to: &UdpSocket) -> [u8; UDP_MAX_MESSAGE_SIZE / 8] {
-    to.send(request).unwrap();
+    in_memory_repository.save(ResourceRecord::new(
+        DomainName::from("google.com"),
+        Type::A,
+        common::question::Class::IN,
+        3600,
+        4,
+        "74.125.193.101".to_string(),
+    ));
 
-    let mut buf = [0; UDP_MAX_MESSAGE_SIZE / 8];
+    let text_content = "some content for google.com";
+    in_memory_repository.save(ResourceRecord::new(
+        DomainName::from("google.com"),
+        Type::TXT,
+        common::question::Class::IN,
+        3600,
+        (text_content.len() as u16) + 1, // +1 because of how TXT record data is encoded
+        text_content.to_string(),
+    ));
 
-    // todo: loop until received everything, not only the first UDP_MAX_MESSAGE_SIZE bits
-    loop {
-        // if amt < UDP_MAX_MESSAGE_SIZE then all has been read
-        match to.recv_from(&mut buf) {
-            Ok((amt, _)) => {
-                println!("amt {:?}", amt);
-                println!("buf {:?}", &buf[..amt]);
-                //buf[..amt].try_into().unwrap()
-            }
-            Err(e) => {
-                panic!("couldn't receive a datagram: {}", e);
-            }
-        }
-    }
+    let fallback_repository = FallbackRepository {
+        fallback_server_address: "8.8.8.8:53",
+        decoder: MessageDecoder {},
+        encoder: MessageEncoder {},
+    };
+    let storage =
+        storage::combined::CombinedRepository::new(in_memory_repository, fallback_repository);
+
+    Server::new(MessageDecoder {}, MessageEncoder {}, storage).run();
 }

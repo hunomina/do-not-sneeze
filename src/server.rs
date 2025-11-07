@@ -51,25 +51,31 @@ where
                     let decoder = Arc::clone(&decoder);
                     let encoder = Arc::clone(&encoder);
                     let storage = Arc::clone(&storage);
+
                     thread::spawn(move || {
-                        println!("buffer {:?}", &buf[..amt]);
+                        // println!("buffer {:?}", &buf[..amt]);
                         let message = decoder.decode(&buf[..amt]).unwrap();
-                        println!("message: {:?}", message);
-                        let queries = message.questions.iter().map(|question| {
-                            let s = storage.lock().unwrap();
-                            match s.get_resource_records(question.clone()) {
-                                Ok(l) => l.into_iter().cloned().collect(),
-                                Err(_) => vec![],
-                            }
-                        });
-                        println!("queries: {:?}", queries);
+                        // println!("message: {:?}", message);
+                        let answers = message
+                            .questions
+                            .iter()
+                            .flat_map(|question| {
+                                storage
+                                    .lock()
+                                    .unwrap()
+                                    .get_resource_records(question.clone())
+                                    .unwrap_or_default()
+                            })
+                            .collect::<Vec<_>>();
+                        // println!("answers: {:?}", answers);
 
-                        let response = message.into_response();
+                        let mut response = message.into_response();
+                        response.set_answers(answers);
+
                         let encoded_response = encoder.encode(response);
-                        println!("response {:?}", encoded_response.as_slice());
+                        // println!("response {:?}", encoded_response.as_slice());
 
-                        // WIP after this
-                        let _ = socket_clone.send_to(&encoded_response, src);
+                        socket_clone.send_to(&encoded_response, src).unwrap();
                     });
                 }
                 Err(e) => {
