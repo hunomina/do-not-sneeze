@@ -1,58 +1,54 @@
 // https://datatracker.ietf.org/doc/html/rfc1035
 
-use std::{net::UdpSocket, thread};
+use decoder::MessageDecoder;
+use encoder::MessageEncoder;
+use server::Server;
 
-use decoder::{Decoder, MessageDecoder};
-use transport::{DNS_PORT, UDP_MAX_MESSAGE_SIZE};
+use crate::{
+    common::{
+        domain_name::DomainName,
+        resource_record::{ResourceRecord, Type},
+    },
+    storage::{InMemoryResourceRecordRepository, fallback::FallbackRepository},
+};
 
 mod common;
 mod decoder;
-mod resource_data;
+mod encoder;
+mod server;
+mod storage;
 mod transport;
 mod utils;
 
 fn main() {
-    // let socket = UdpSocket::bind(format!("0.0.0.0:{}", DNS_PORT)).unwrap();
-    //
-    // let mut buf = [0; UDP_MAX_MESSAGE_SIZE / 8];
-    // loop {
-    //     match socket.recv_from(&mut buf) {
-    //         Ok((amt, src)) => {
-    //             thread::spawn(move || {
-    //                 println!("from: {}", src);
-    //                 println!("message: {:?}", Message::from(&buf[..amt]));
-    //                 src.answer(...)
-    //             });
-    //         }
-    //         Err(e) => {
-    //             println!("couldn't receive a datagram: {}", e);
-    //         }
-    //     }
-    // }
+    let mut in_memory_repository = InMemoryResourceRecordRepository::new();
 
-    let request: &[u8] = &[
-        226, 44, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, // header
-        6, b'g', b'o', b'o', b'g', b'l', b'e', 3, b'c', b'o', b'm', 0, // question domain name
-        0, 1, // question type
-        0, 1, // question class
-    ];
-    send_dns_request_to(request, format!("8.8.8.8:{}", DNS_PORT))
-}
+    in_memory_repository.save(ResourceRecord::new(
+        DomainName::from("google.com"),
+        Type::A,
+        common::question::Class::IN,
+        3600,
+        4,
+        "74.125.193.101".to_string(),
+    ));
 
-fn send_dns_request_to(request: &[u8], to: String) {
-    let socket = UdpSocket::bind(format!("0.0.0.0:{}", DNS_PORT)).unwrap();
-    socket.connect(to).unwrap();
-    socket.send(request).unwrap();
+    let text_content = "some content for google.com";
+    in_memory_repository.save(ResourceRecord::new(
+        DomainName::from("google.com"),
+        Type::TXT,
+        common::question::Class::IN,
+        3600,
+        (text_content.len() as u16) + 1, // +1 because of how TXT record data is encoded
+        text_content.to_string(),
+    ));
 
-    let mut buf = [0; UDP_MAX_MESSAGE_SIZE / 8];
+    let fallback_repository = FallbackRepository {
+        fallback_server_address: "8.8.8.8:53",
+        decoder: MessageDecoder {},
+        encoder: MessageEncoder {},
+    };
+    let storage =
+        storage::combined::CombinedRepository::new(in_memory_repository, fallback_repository);
 
-    match socket.recv_from(&mut buf) {
-        Ok((amt, _)) => {
-            println!("buffer: {:?}", &buf[..amt]);
-            println!("message: {:?}", MessageDecoder {}.decode(&buf[..amt]));
-        }
-        Err(e) => {
-            println!("couldn't receive a datagram: {}", e);
-        }
-    }
+    Server::new(MessageDecoder {}, MessageEncoder {}, storage).run();
 }

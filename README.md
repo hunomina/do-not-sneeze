@@ -1,16 +1,132 @@
 # Do Not Sneeze
 
-DNS implementation following [RFC 1035](https://datatracker.ietf.org/doc/html/rfc1035)
+A DNS server implementation written in Rust, following [RFC 1035](https://datatracker.ietf.org/doc/html/rfc1035). It is a fully functional DNS server that can handle DNS queries, serve records from an in-memory cache, and fall back to upstream DNS servers for unknown domains. The implementation follows RFC 1035 standards with a modular, trait-based architecture for extensibility.
 
-## Objective
+## Objective of this project
 
 Have a working standalone DNS server that can handle requests and deliver reliable responses.
 
-## Modules
+For educational purposes, this project aims to use as little external dependencies as possible, implementing core DNS functionalities from scratch.
 
-- ./common: domain structs
-- ./decoding: decoder trait + implementation
-- ./encoding: encoder trait + implementation
-- ./storage: rr storage
-- ./do-not-sneeze: server itself (with fallback server as parameter)
-- ./client: wrap encoder + sender in cli tool
+## Features
+
+- **DNS Message Handling**: Encodes and decodes DNS messages following RFC 1035
+- **Multi-threaded Server**: Handles concurrent DNS queries using thread-per-request model
+- **Smart Caching**: Two-tier storage with in-memory cache and upstream DNS fallback
+- **Upstream DNS Integration**: Automatically queries upstream DNS (e.g., 8.8.8.8) for unknown domains
+- **Resource Record Support**: A and TXT records fully implemented, 19 additional record types defined
+- **RFC 1035 Compliant**: Proper handling of DNS headers, questions, and resource records
+- **Domain Name Compression**: Efficient domain name encoding with label compression support
+
+## Architecture
+
+The project is organized into clear, modular components:
+
+```
+src/
+├── common/           # Core DNS data structures
+├── decoder/          # Binary to DNS message parsing
+├── encoder/          # DNS message to binary serialization
+├── storage/          # Record storage backends
+├── server.rs         # UDP server on port 53
+├── transport.rs      # Transport constants
+├── utils.rs          # Bit manipulation utilities
+└── main.rs           # Application entry point
+```
+
+### Design Patterns
+
+- **Trait-Based Architecture**: `Decoder`, `Encoder`, and `ResourceRecordRepository` traits enable dependency injection and testing
+- **Generic Storage**: Storage layer is generic over decoder/encoder implementations
+- **Safe Concurrent Access**: Arc<Mutex<>> pattern for thread-safe storage operations
+- **Error Propagation**: Result types throughout for proper error handling
+
+## Supported Record Types
+
+| Type | Code | Status |
+|------|------|--------|
+| **A** | 1 | ✅ Fully implemented (IPv4 addresses) |
+| **TXT** | 16 | ✅ Fully implemented (with RFC 1035 character-string format) |
+| AAAA | 28 | ⚠️ Defined, encoding/decoding not implemented |
+| NS | 2 | ⚠️ Defined, encoding/decoding not implemented |
+| CNAME | 5 | ⚠️ Defined, encoding/decoding not implemented |
+| SOA | 6 | ⚠️ Defined, encoding/decoding not implemented |
+| MX | 15 | ⚠️ Defined, encoding/decoding not implemented |
+| PTR | 12 | ⚠️ Defined, encoding/decoding not implemented |
+
+Plus 13 additional record types (HINFO, MINFO, WKS, SVCB, HTTPS, OPT, etc.)
+
+## Getting Started
+
+### Running the Server
+
+```bash
+# Run the server (may require sudo for port 53)
+sudo cargo run
+
+# Or run the compile the project and run the binary
+cargo build --release
+sudo ./target/release/do-not-sneeze
+```
+
+## Testing
+
+### Run unit tests
+
+```bash
+cargo test
+```
+
+### Testing a running instance with dig
+
+```bash
+# Query A record (use +noedns to avoid EDNS)
+dig @127.0.0.1 +noedns google.com A
+
+# Query TXT record
+dig @127.0.0.1 +noedns google.com TXT
+```
+
+**Important**: Use the `+noedns` flag with dig to prevent EDNS(0) OPT pseudo-records from being sent, as EDNS is not currently supported by this implementation.
+
+## How It Works
+
+### Request Flow
+
+1. **Listen**: UDP socket receives DNS query on port 53
+2. **Decode**: Binary message parsed into structured DNS Message
+3. **Query Storage**:
+   - Check in-memory cache first
+   - If not found, query upstream DNS (8.8.8.8)
+   - Cache upstream responses for future queries
+4. **Format Response**: Original message converted to response with answers
+5. **Encode**: DNS response serialized back to binary format
+6. **Send**: Response sent back to client via UDP
+
+## Development
+
+### Project Structure Notes
+
+- `common/`: Shared data structures (no business logic)
+- `decoder/`: Only handles binary → struct conversion
+- `encoder/`: Only handles struct → binary conversion
+- `storage/`: Manages record persistence and retrieval
+- `server.rs`: Orchestrates request/response cycle
+
+## Current limitations
+
+[] EDNS(0) support
+[] Additional record type implementations (AAAA, MX, NS, CNAME, etc.)
+[] TTL-based cache expiration
+
+## License
+
+This project is licensed under the Creative Commons Attribution-NonCommercial 4.0 International License - see the [LICENSE](LICENSE) file for details.
+
+**You may NOT use this software for commercial purposes.**
+
+## References
+
+- [RFC 1035 - Domain Names - Implementation and Specification](https://datatracker.ietf.org/doc/html/rfc1035)
+- [RFC 3596 - DNS Extensions to Support IPv6 (AAAA records)](https://datatracker.ietf.org/doc/html/rfc3596)
+- [RFC 6891 - Extension Mechanisms for DNS (EDNS)](https://datatracker.ietf.org/doc/html/rfc6891)

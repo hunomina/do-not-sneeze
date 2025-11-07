@@ -2,6 +2,8 @@ use header::Header;
 use question::Question;
 use resource_record::ResourceRecord;
 
+use self::header::MessageType;
+
 pub mod domain_name;
 pub mod header;
 pub mod question;
@@ -22,33 +24,13 @@ pub mod resource_record;
     +---------------------+
 */
 
-// first bit of second line of header is the message type
-const MESSAGE_TYPE_BIT_MASK: u16 = 0b1000000000000000;
-
-pub type MessageId = u16;
-
-#[derive(Debug, PartialEq)]
-pub enum MessageType {
-    Query,
-    Response,
-}
-
-impl From<u16> for MessageType {
-    fn from(value: u16) -> Self {
-        match value & MESSAGE_TYPE_BIT_MASK {
-            0 => MessageType::Query,
-            _ => MessageType::Response,
-        }
-    }
-}
-
 #[derive(Debug, PartialEq)]
 pub struct Message {
-    header: Header,
-    questions: Vec<Question>,
-    answers: Vec<ResourceRecord>,
-    authorities: Vec<ResourceRecord>,
-    additionnals: Vec<ResourceRecord>,
+    pub header: Header,
+    pub questions: Vec<Question>,
+    pub answers: Vec<ResourceRecord>,
+    pub authorities: Vec<ResourceRecord>,
+    pub additionnals: Vec<ResourceRecord>,
 }
 
 impl Message {
@@ -59,6 +41,11 @@ impl Message {
         authorities: Vec<ResourceRecord>,
         additionnals: Vec<ResourceRecord>,
     ) -> Self {
+        assert_eq!(header.questions_count, questions.len() as u16);
+        assert_eq!(header.answers_count, answers.len() as u16);
+        assert_eq!(header.authority_count, authorities.len() as u16);
+        assert_eq!(header.additional_count, additionnals.len() as u16);
+
         Self {
             header,
             questions,
@@ -66,5 +53,16 @@ impl Message {
             authorities,
             additionnals,
         }
+    }
+
+    pub fn into_response(mut self) -> Self {
+        self.header.qr = MessageType::Response;
+
+        self
+    }
+
+    pub fn set_answers(&mut self, answers: Vec<ResourceRecord>) {
+        self.header.answers_count = answers.len() as u16;
+        self.answers = answers;
     }
 }
