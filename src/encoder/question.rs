@@ -1,6 +1,6 @@
-use crate::common::question::Question;
+use crate::{common::question::Question, utils::push_u16_to_u8_vec};
 
-use super::{domain_name::encode as encode_domain_name, push_u16_to_u8_vec};
+use super::domain_name::encode as encode_domain_name;
 
 pub fn encode(question: Question) -> Vec<u8> {
     let mut r = vec![];
