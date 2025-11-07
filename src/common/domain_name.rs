@@ -22,7 +22,7 @@ impl std::fmt::Debug for DomainName {
 impl From<&str> for DomainName {
     fn from(s: &str) -> Self {
         let mut labels: Vec<String> = s.split('.').map(|s| s.into()).collect();
-        if labels.last().unwrap().ne("") {
+        if !labels.last().unwrap().is_empty() {
             labels.push(Label::new());
         }
         DomainName { labels }

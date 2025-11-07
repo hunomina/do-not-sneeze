@@ -14,3 +14,7 @@ Have a working standalone DNS server that can handle requests and deliver reliab
 - ./storage: rr storage
 - ./do-not-sneeze: server itself (with fallback server as parameter)
 - ./client: wrap encoder + sender in cli tool
+
+## Debug
+
+When using `dig`: use `+noedns` to prevent OPT pseudo-record from EDNS(0) to be sent in the additional section (which is not supported by this implementation).

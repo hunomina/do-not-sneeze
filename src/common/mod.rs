@@ -41,6 +41,11 @@ impl Message {
         authorities: Vec<ResourceRecord>,
         additionnals: Vec<ResourceRecord>,
     ) -> Self {
+        assert_eq!(header.questions_count, questions.len() as u16);
+        assert_eq!(header.answers_count, answers.len() as u16);
+        assert_eq!(header.authority_count, authorities.len() as u16);
+        assert_eq!(header.additional_count, additionnals.len() as u16);
+
         Self {
             header,
             questions,
@@ -54,5 +59,10 @@ impl Message {
         self.header.qr = MessageType::Response;
 
         self
+    }
+
+    pub fn set_answers(&mut self, answers: Vec<ResourceRecord>) {
+        self.header.answers_count = answers.len() as u16;
+        self.answers = answers;
     }
 }
