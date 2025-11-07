@@ -1,4 +1,5 @@
 use header::Header;
+use opt_record::OptRecord;
 use question::Question;
 use resource_record::ResourceRecord;
 
@@ -6,6 +7,7 @@ use self::header::MessageType;
 
 pub mod domain_name;
 pub mod header;
+pub mod opt_record;
 pub mod question;
 pub mod resource_record;
 
@@ -31,6 +33,7 @@ pub struct Message {
     pub answers: Vec<ResourceRecord>,
     pub authorities: Vec<ResourceRecord>,
     pub additionnals: Vec<ResourceRecord>,
+    pub opt_record: Option<OptRecord>,
 }
 
 impl Message {
@@ -40,11 +43,15 @@ impl Message {
         answers: Vec<ResourceRecord>,
         authorities: Vec<ResourceRecord>,
         additionnals: Vec<ResourceRecord>,
+        opt_record: Option<OptRecord>,
     ) -> Self {
+        // If OPT record is present, it counts as one additional record
+        let expected_additional = additionnals.len() + if opt_record.is_some() { 1 } else { 0 };
+
         assert_eq!(header.questions_count, questions.len() as u16);
         assert_eq!(header.answers_count, answers.len() as u16);
         assert_eq!(header.authority_count, authorities.len() as u16);
-        assert_eq!(header.additional_count, additionnals.len() as u16);
+        assert_eq!(header.additional_count, expected_additional as u16);
 
         Self {
             header,
@@ -52,6 +59,7 @@ impl Message {
             answers,
             authorities,
             additionnals,
+            opt_record,
         }
     }
 

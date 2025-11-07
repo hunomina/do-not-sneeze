@@ -7,6 +7,7 @@ use self::{
 
 mod domain_name;
 mod header;
+mod opt_record;
 mod question;
 mod resource_record;
 
@@ -41,6 +42,10 @@ impl Encoder for MessageEncoder {
             .additionnals
             .into_iter()
             .for_each(|rr| r.extend(encode_resource_record(rr)));
+
+        if let Some(opt) = &message.opt_record {
+            r.extend(opt_record::encode(opt));
+        }
 
         r
     }
@@ -93,6 +98,7 @@ mod tests {
             )],
             vec![],
             vec![],
+            None,
         );
 
         let encoded_message = encoder.encode(message);

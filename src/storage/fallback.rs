@@ -85,8 +85,7 @@ fn fetch_from_other_server<T: ToSocketAddrs + Clone, D: Decoder, E: Encoder>(
 }
 
 fn generate_message_with_question(question: Question) -> Message {
-    // IMPROVEMENT: problem with building our own headers (and message)
-    // is that we potentially discard some of the original request properties
+    // todo IMPROVEMENT: problem with building our own headers (and message) is that we potentially discard some of the original request properties
     Message::new(
         Header {
             id: time::SystemTime::now()
@@ -110,5 +109,6 @@ fn generate_message_with_question(question: Question) -> Message {
         vec![],
         vec![],
         vec![],
+        None,
     )
 }
