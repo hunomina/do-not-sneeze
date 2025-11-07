@@ -1,4 +1,4 @@
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, Ipv6Addr};
 
 use crate::{
     common::resource_record::{ResourceRecord, Type},
@@ -37,6 +37,7 @@ pub fn encode(resource_record: ResourceRecord) -> Vec<u8> {
 fn encode_resource_data_from_type_and_string(type_: Type, value: String) -> Vec<u8> {
     match type_ {
         Type::A => encode_type_a_string(value).to_vec(),
+        Type::AAAA => encode_type_aaaa_string(value).to_vec(),
         Type::TXT => encode_type_txt_string(value),
         t => unimplemented!("Unimplemented resource record data type encoding {:?}", t),
     }
@@ -58,9 +59,16 @@ fn encode_type_a_string(value: String) -> [u8; 4] {
         .octets()
 }
 
+fn encode_type_aaaa_string(value: String) -> [u8; 16] {
+    value
+        .parse::<Ipv6Addr>()
+        .unwrap_or_else(|_| panic!("Invalid IPv6 address: {}", value))
+        .octets()
+}
+
 #[cfg(test)]
 mod tests {
-    use std::net::Ipv4Addr;
+    use std::net::{Ipv4Addr, Ipv6Addr};
 
     use crate::common::{
         domain_name::DomainName,
@@ -170,5 +178,77 @@ mod tests {
         ];
 
         assert_eq!(expected, encoded_rr.as_slice());
+    }
+
+    #[test]
+    fn encode_type_aaaa_string_compressed() {
+        let ipv6_str = "2001:db8::1".to_string();
+        let encoded = encode_type_aaaa_string(ipv6_str);
+
+        let expected = [
+            0x20, 0x01, 0x0d, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x01,
+        ];
+
+        assert_eq!(expected, encoded);
+    }
+
+    #[test]
+    fn encode_type_aaaa_string_loopback() {
+        let ipv6_str = "::1".to_string();
+        let encoded = encode_type_aaaa_string(ipv6_str);
+
+        let expected = [
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x01,
+        ];
+
+        assert_eq!(expected, encoded);
+    }
+
+    #[test]
+    fn encode_type_aaaa_string_full() {
+        let ipv6_str = "2607:f8b0:4004:c07::71".to_string();
+        let encoded = encode_type_aaaa_string(ipv6_str);
+
+        let expected = [
+            0x26, 0x07, 0xf8, 0xb0, 0x40, 0x04, 0x0c, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x71,
+        ];
+
+        assert_eq!(expected, encoded);
+    }
+
+    #[test]
+    fn encode_aaaa_resource_record() {
+        let rr = ResourceRecord::new(
+            DomainName::from("google.com"),
+            Type::AAAA,
+            Class::IN,
+            3600,
+            16,
+            "2001:db8::1".to_string(),
+        );
+
+        let encoded_rr = encode(rr);
+
+        let expected = [
+            6, b'g', b'o', b'o', b'g', b'l', b'e', 3, b'c', b'o', b'm',
+            0, // name: "google.com"
+            0, 28, // type: AAAA (28)
+            0, 1, // class: IN (1)
+            0, 0, 14, 16, // ttl: 3600 seconds
+            0, 16, // resource data length: 16 bytes
+            0x20, 0x01, 0x0d, 0xb8, 0x00, 0x00, 0x00, 0x00, // IPv6 address
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // 2001:db8::1
+        ];
+
+        assert_eq!(expected, encoded_rr.as_slice());
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid IPv6 address")]
+    fn encode_type_aaaa_string_invalid() {
+        encode_type_aaaa_string("not an ipv6 address".to_string());
     }
 }

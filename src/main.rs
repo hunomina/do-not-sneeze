@@ -42,6 +42,15 @@ fn main() {
         text_content.to_string(),
     ));
 
+    in_memory_repository.save(ResourceRecord::new(
+        DomainName::from("google.com"),
+        Type::AAAA,
+        common::question::Class::IN,
+        3600,
+        16,                                   // IPv6 addresses are always 16 bytes
+        "2607:f8b0:4004:c07::71".to_string(), // Google IPv6 address
+    ));
+
     let fallback_repository = FallbackRepository {
         fallback_server_address: "8.8.8.8:53",
         decoder: MessageDecoder {},
