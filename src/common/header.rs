@@ -81,13 +81,14 @@ pub enum QueryType {
     ServerStatusRequest,
 }
 
-impl From<u16> for QueryType {
-    fn from(value: u16) -> Self {
+impl TryFrom<u16> for QueryType {
+    type Error = String;
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
         match value & QUERY_TYPE_BIT_MASK {
-            QUERY_TYPE_STANDARD_BIT_VALUE => QueryType::Standard,
-            QUERY_TYPE_INVERSE_BIT_VALUE => QueryType::Inverse,
-            QUERY_TYPE_SERVER_STATUS_REQUEST_BIT_VALUE => QueryType::ServerStatusRequest,
-            _ => panic!("Invalid query type: {}", value),
+            QUERY_TYPE_STANDARD_BIT_VALUE => Ok(QueryType::Standard),
+            QUERY_TYPE_INVERSE_BIT_VALUE => Ok(QueryType::Inverse),
+            QUERY_TYPE_SERVER_STATUS_REQUEST_BIT_VALUE => Ok(QueryType::ServerStatusRequest),
+            _ => Err(format!("Invalid query type: {}", value)),
         }
     }
 }
@@ -102,17 +103,18 @@ pub enum ResponseCode {
     Refused,
 }
 
-impl From<u16> for ResponseCode {
-    fn from(value: u16) -> Self {
+impl TryFrom<u16> for ResponseCode {
+    type Error = String;
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
         // bit 2, 3, 4 and 5 contains the query type
         match value & RESPONSE_CODE_BIT_MASK {
-            0 => Self::NoError,
-            1 => Self::FormatError,
-            2 => Self::ServerFailure,
-            3 => Self::NameError,
-            4 => Self::NotImplemented,
-            5 => Self::Refused,
-            _ => panic!("Invalid response code: {}", value),
+            0 => Ok(Self::NoError),
+            1 => Ok(Self::FormatError),
+            2 => Ok(Self::ServerFailure),
+            3 => Ok(Self::NameError),
+            4 => Ok(Self::NotImplemented),
+            5 => Ok(Self::Refused),
+            _ => Err(format!("Invalid response code: {}", value)),
         }
     }
 }

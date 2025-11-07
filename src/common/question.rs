@@ -16,16 +16,18 @@ pub enum Type {
     ALL,   // request for all records
 }
 
-impl From<u16> for Type {
-    fn from(value: u16) -> Self {
+impl TryFrom<u16> for Type {
+    type Error = String;
+
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
         match RRType::try_from(value) {
-            Ok(rr_type) => Type::RRType(rr_type),
+            Ok(rr_type) => Ok(Type::RRType(rr_type)),
             Err(_) => match value {
-                252 => Self::AXFR,
-                253 => Self::MAILB,
-                254 => Self::MAILA,
-                255 => Self::ALL,
-                _ => panic!("Unknown QType: {}", value),
+                252 => Ok(Self::AXFR),
+                253 => Ok(Self::MAILB),
+                254 => Ok(Self::MAILA),
+                255 => Ok(Self::ALL),
+                _ => Err(format!("Unknown QType: {}", value)),
             },
         }
     }
@@ -52,15 +54,17 @@ pub enum Class {
     ALL,
 }
 
-impl From<u16> for Class {
-    fn from(value: u16) -> Self {
+impl TryFrom<u16> for Class {
+    type Error = String;
+
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
         match value {
-            1 => Self::IN,
-            2 => Self::CS,
-            3 => Self::CH,
-            4 => Self::HS,
-            255 => Self::ALL,
-            _ => panic!("Unknown QClass: {}", value),
+            1 => Ok(Self::IN),
+            2 => Ok(Self::CS),
+            3 => Ok(Self::CH),
+            4 => Ok(Self::HS),
+            255 => Ok(Self::ALL),
+            _ => Err(format!("Unknown QClass: {}", value)),
         }
     }
 }

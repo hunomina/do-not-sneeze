@@ -10,9 +10,9 @@ pub struct ResourceRecord {
     pub name: DomainName,
     pub type_: Type,
     pub class: QuestionClass,
-    ttl: TimeToLive,
-    resource_data_length: u16,
-    resource_data: String,
+    pub ttl: TimeToLive,
+    pub resource_data_length: u16,
+    pub resource_data: String,
 }
 
 impl ResourceRecord {
@@ -61,30 +61,32 @@ pub enum Type {
     OPT,      // pseudo-record type needed to support EDNS.
 }
 
-impl From<u16> for Type {
-    fn from(value: u16) -> Self {
+impl TryFrom<u16> for Type {
+    type Error = String;
+
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
         match value {
-            1 => Self::A,
-            2 => Self::NS,
-            3 => Self::MD_OBS,
-            4 => Self::MF_OBS,
-            5 => Self::CNAME,
-            6 => Self::SOA,
-            7 => Self::MB_EXP,
-            8 => Self::MG_EXP,
-            9 => Self::MR_EXP,
-            10 => Self::NULL_EXP,
-            11 => Self::WKS,
-            12 => Self::PTR,
-            13 => Self::HINFO,
-            14 => Self::MINFO,
-            15 => Self::MX,
-            16 => Self::TXT,
-            28 => Self::AAAA,
-            41 => Self::OPT,
-            64 => Self::SVCB,
-            65 => Self::HTTPS,
-            _ => panic!("Unknown RR type: {}", value),
+            1 => Ok(Self::A),
+            2 => Ok(Self::NS),
+            3 => Ok(Self::MD_OBS),
+            4 => Ok(Self::MF_OBS),
+            5 => Ok(Self::CNAME),
+            6 => Ok(Self::SOA),
+            7 => Ok(Self::MB_EXP),
+            8 => Ok(Self::MG_EXP),
+            9 => Ok(Self::MR_EXP),
+            10 => Ok(Self::NULL_EXP),
+            11 => Ok(Self::WKS),
+            12 => Ok(Self::PTR),
+            13 => Ok(Self::HINFO),
+            14 => Ok(Self::MINFO),
+            15 => Ok(Self::MX),
+            16 => Ok(Self::TXT),
+            28 => Ok(Self::AAAA),
+            41 => Ok(Self::OPT),
+            64 => Ok(Self::SVCB),
+            65 => Ok(Self::HTTPS),
+            _ => Err(format!("Unknown RR type: {}", value)),
         }
     }
 }
