@@ -4,8 +4,10 @@ mod question;
 mod resource_record;
 
 use crate::common::{
-    header::{extract_header_bits_from_buffer, HEADER_BIT_SIZE},
     Message,
+    header::{HEADER_BIT_SIZE, extract_header_bits_from_buffer},
+    question::Question,
+    resource_record::ResourceRecord,
 };
 
 pub trait Decoder {
@@ -14,10 +16,15 @@ pub trait Decoder {
 
 #[derive(Debug)]
 pub enum DecodingError {
-    BOOM,
+    InvalidHeaderSize,
+    InvalidHeaderQueryType(String),
+    InvalidHeaderResponseCode(String),
+    InvalidResourceRecordType(String),
+    InvalidResourceRecordClass(String),
+    InvalidQuestionType(String),
+    InvalidQuestionClass(String),
 }
 
-#[derive(Clone, Copy)]
 pub struct MessageDecoder {}
 
 impl Decoder for MessageDecoder {
@@ -25,40 +32,42 @@ impl Decoder for MessageDecoder {
         let source = buffer;
 
         let (header_bits, mut buffer) = extract_header_bits_from_buffer(buffer);
-        let header_bits: &[u8; HEADER_BIT_SIZE / 8] = header_bits.try_into().unwrap();
-        let header = header::decode(header_bits);
+        let header_bits: &[u8; HEADER_BIT_SIZE / 8] = header_bits
+            .try_into()
+            .map_err(|_| DecodingError::InvalidHeaderSize)?;
+        let header = header::decode(header_bits)?;
 
         let questions = (0..header.questions_count)
             .map(|_| {
-                let (question, rest) = question::decode(buffer);
+                let (question, rest) = question::decode(buffer)?;
                 buffer = rest;
-                question
+                Ok(question)
             })
-            .collect();
+            .collect::<Result<Vec<Question>, DecodingError>>()?;
 
         let answers = (0..header.answers_count)
             .map(|_| {
-                let (rr, rest) = resource_record::decode(buffer, source);
+                let (rr, rest) = resource_record::decode(buffer, source)?;
                 buffer = rest;
-                rr
+                Ok(rr)
             })
-            .collect();
+            .collect::<Result<Vec<ResourceRecord>, DecodingError>>()?;
 
         let authorities = (0..header.authority_count)
             .map(|_| {
-                let (rr, rest) = resource_record::decode(buffer, source);
+                let (rr, rest) = resource_record::decode(buffer, source)?;
                 buffer = rest;
-                rr
+                Ok(rr)
             })
-            .collect();
+            .collect::<Result<Vec<ResourceRecord>, DecodingError>>()?;
 
         let additionnals = (0..header.additional_count)
             .map(|_| {
-                let (rr, rest) = resource_record::decode(buffer, source);
+                let (rr, rest) = resource_record::decode(buffer, source)?;
                 buffer = rest;
-                rr
+                Ok(rr)
             })
-            .collect();
+            .collect::<Result<Vec<ResourceRecord>, DecodingError>>()?;
 
         Ok(Message::new(
             header,

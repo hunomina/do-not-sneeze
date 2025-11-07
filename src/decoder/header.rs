@@ -1,20 +1,23 @@
 use crate::{
     common::header::{
-        Header, MessageType, QueryType, ResponseCode, IS_AUTHORITATIVE_ANSWER_BIT_MASK,
-        IS_RECURSION_AVAILABLE_BIT_MASK, IS_RECUSTION_DESIRED_BIT_MASK, IS_TRUNCATED_BIT_MASK,
+        Header, IS_AUTHORITATIVE_ANSWER_BIT_MASK, IS_RECURSION_AVAILABLE_BIT_MASK,
+        IS_RECUSTION_DESIRED_BIT_MASK, IS_TRUNCATED_BIT_MASK, MessageType, QueryType, ResponseCode,
     },
+    decoder::DecodingError,
     utils::{concat_two_u8s, extract_next_sixteen_bits_from_buffer},
 };
 
-pub fn decode(buffer: &[u8; 12]) -> Header {
+pub fn decode(buffer: &[u8; 12]) -> Result<Header, DecodingError> {
     let (id, buffer) = extract_next_sixteen_bits_from_buffer(buffer); // now buffer is [u8; 10]
 
     let (next_sixteen_bits, buffer) = buffer.split_at(2); // now buffer is [u8; 8]
     let next_sixteen_bits = concat_two_u8s(next_sixteen_bits[0], next_sixteen_bits[1]);
 
     let qr = MessageType::from(next_sixteen_bits);
-    let opcode = QueryType::from(next_sixteen_bits);
-    let response_code = ResponseCode::from(next_sixteen_bits);
+    let opcode =
+        QueryType::try_from(next_sixteen_bits).map_err(DecodingError::InvalidHeaderQueryType)?;
+    let response_code = ResponseCode::try_from(next_sixteen_bits)
+        .map_err(DecodingError::InvalidHeaderResponseCode)?;
 
     let authoritative_answer = next_sixteen_bits & IS_AUTHORITATIVE_ANSWER_BIT_MASK != 0;
     let truncated = next_sixteen_bits & IS_TRUNCATED_BIT_MASK != 0;
@@ -29,7 +32,7 @@ pub fn decode(buffer: &[u8; 12]) -> Header {
     // buffer should be empty since we've read 12 u8 => 96 bits == header size
     assert!(buffer.is_empty());
 
-    Header {
+    Ok(Header {
         id,
         qr,
         opcode,
@@ -43,7 +46,7 @@ pub fn decode(buffer: &[u8; 12]) -> Header {
         answers_count,
         authority_count,
         additional_count,
-    }
+    })
 }
 
 #[cfg(test)]
@@ -54,7 +57,7 @@ mod tests {
 
     #[test]
     fn test() {
-        let header = decode(BUFFER);
+        let header = decode(BUFFER).unwrap();
 
         let expected_header = Header {
             id: 57900,

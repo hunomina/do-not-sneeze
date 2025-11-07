@@ -1,23 +1,24 @@
 use crate::{
     common::question::{Class, Question, Type},
+    decoder::DecodingError,
     utils::extract_next_sixteen_bits_from_buffer,
 };
 
 use super::domain_name::decode as decode_domain_name;
 
-pub fn decode(buffer: &[u8]) -> (Question, &[u8]) {
+pub fn decode(buffer: &[u8]) -> Result<(Question, &[u8]), DecodingError> {
     let (name, buffer) = decode_domain_name(buffer, buffer);
     let (type_bytes, buffer) = extract_next_sixteen_bits_from_buffer(buffer);
-
     let (class_bytes, buffer) = extract_next_sixteen_bits_from_buffer(buffer);
-    (
+
+    Ok((
         Question {
             name,
-            type_: Type::from(type_bytes),
-            class: Class::from(class_bytes),
+            type_: Type::try_from(type_bytes).map_err(DecodingError::InvalidQuestionType)?,
+            class: Class::try_from(class_bytes).map_err(DecodingError::InvalidQuestionClass)?,
         },
         buffer,
-    )
+    ))
 }
 
 #[cfg(test)]
@@ -34,7 +35,7 @@ mod tests {
             0, 1, // question type
             0, 1, // question class
         ];
-        let (question, rest) = decode(buffer);
+        let (question, rest) = decode(buffer).unwrap();
         let expected_question = Question {
             name: DomainName {
                 labels: vec!["wpad".into(), "numericable".into(), "fr".into(), "".into()],
