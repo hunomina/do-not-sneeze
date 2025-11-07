@@ -113,11 +113,11 @@ dig @127.0.0.1 +noedns google.com TXT
 - `storage/`: Manages record persistence and retrieval
 - `server.rs`: Orchestrates request/response cycle
 
-## Current limitations
+## Next features in the pipes
 
-[] EDNS(0) support
-[] Additional record type implementations (AAAA, MX, NS, CNAME, etc.)
-[] TTL-based cache expiration
+- [ ] EDNS(0) support
+- [ ] Additional record type implementations (AAAA, MX, NS, CNAME, etc.)
+- [ ] TTL-based cache expiration
 
 ## License
 
@@ -130,3 +130,4 @@ This project is licensed under the Creative Commons Attribution-NonCommercial 4.
 - [RFC 1035 - Domain Names - Implementation and Specification](https://datatracker.ietf.org/doc/html/rfc1035)
 - [RFC 3596 - DNS Extensions to Support IPv6 (AAAA records)](https://datatracker.ietf.org/doc/html/rfc3596)
 - [RFC 6891 - Extension Mechanisms for DNS (EDNS)](https://datatracker.ietf.org/doc/html/rfc6891)
+
