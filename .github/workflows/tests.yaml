@@ -1,7 +1,7 @@
 name: Run tests
 on: [push]
 jobs:
-  run-tests:
+  unit:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
@@ -12,3 +12,39 @@ jobs:
 
       - name: Run cargo test
         run: cargo test --verbose
+
+  end-to-end:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+
+      - name: Update toolchain
+        run: rustup update stable && rustup default stable
+
+      - name: Build release binary
+        run: cargo build --release --verbose
+
+      - name: Start DNS server
+        run: |
+          DNS_PORT=5353 ./target/release/do-not-sneeze & DNS_PID=$!
+          echo "DNS_PID=$DNS_PID" >> $GITHUB_ENV
+          sleep 1
+
+      - name: Test DNS query with EDNS
+        run: |
+          OUTPUT=$(dig @127.0.0.1 -p 5353 google.com TXT)
+          echo "$OUTPUT"
+
+          # Verify expected content in output
+          echo "$OUTPUT" | grep -q ";; flags: qr rd; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1" || (echo "Unexpected answer header" && exit 1)
+          echo "$OUTPUT" | grep -q "EDNS: version: 0" || (echo "Missing EDNS version 0" && exit 1)
+          echo "$OUTPUT" | grep -q "google.com.*IN.*TXT" || (echo "Missing TXT question" && exit 1)
+          echo "$OUTPUT" | grep -q "google.com.*3600.*IN.*TXT.*\"some content for google.com\"" || (echo "Missing expected TXT answer" && exit 1)
+          echo "$OUTPUT" | grep -q "SERVER: 127.0.0.1#5353(127.0.0.1) (UDP)" || (echo "Local server was not used" && exit 1)
+
+          echo "✅ All validations passed!"
+
+      - name: Stop DNS server
+        if: always()
+        run: kill $DNS_PID || true

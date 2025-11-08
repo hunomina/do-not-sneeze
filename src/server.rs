@@ -1,4 +1,5 @@
 use std::{
+    env,
     net::UdpSocket,
     sync::{Arc, Mutex},
     thread,
@@ -37,7 +38,13 @@ where
     }
 
     pub fn run(self) {
-        let socket = UdpSocket::bind(format!("0.0.0.0:{}", DNS_PORT)).unwrap();
+        let port = env::var("DNS_PORT")
+            .ok()
+            .and_then(|p| p.parse::<u16>().ok())
+            .unwrap_or(DNS_PORT);
+        let socket = UdpSocket::bind(format!("0.0.0.0:{}", port)).unwrap();
+
+        println!("🚀 DNS server running on port {}", port);
 
         let decoder = Arc::new(self.decoder);
         let encoder = Arc::new(self.encoder);
