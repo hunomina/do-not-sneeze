@@ -62,6 +62,12 @@ where
                     thread::spawn(move || {
                         let message = decoder.decode(&buf[..amt]).unwrap();
 
+                        println!(
+                            "👾 Received message: questions {:?}; EDNS: {}",
+                            message.questions,
+                            message.opt_record.is_some()
+                        );
+
                         let answers = message
                             .questions
                             .iter()
