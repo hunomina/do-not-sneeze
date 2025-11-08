@@ -1,5 +1,6 @@
 mod domain_name;
 mod header;
+mod opt_record;
 mod question;
 mod resource_record;
 
@@ -7,7 +8,7 @@ use crate::common::{
     Message,
     header::{HEADER_BIT_SIZE, extract_header_bits_from_buffer},
     question::Question,
-    resource_record::ResourceRecord,
+    resource_record::{ResourceRecord, Type},
 };
 
 pub trait Decoder {
@@ -23,6 +24,8 @@ pub enum DecodingError {
     InvalidResourceRecordClass(String),
     InvalidQuestionType(String),
     InvalidQuestionClass(String),
+    InvalidOptRecord(String),
+    MultipleOptRecords,
 }
 
 pub struct MessageDecoder {}
@@ -61,13 +64,24 @@ impl Decoder for MessageDecoder {
             })
             .collect::<Result<Vec<ResourceRecord>, DecodingError>>()?;
 
-        let additionnals = (0..header.additional_count)
-            .map(|_| {
-                let (rr, rest) = resource_record::decode(buffer, source)?;
+        // Decode additional section, checking for OPT record
+        let mut additionnals = Vec::new();
+        let mut opt_record = None;
+
+        for _ in 0..header.additional_count {
+            if is_opt_record(buffer)? {
+                if opt_record.is_some() {
+                    return Err(DecodingError::MultipleOptRecords);
+                }
+                let (opt, rest) = opt_record::decode(buffer)?;
+                opt_record = Some(opt);
                 buffer = rest;
-                Ok(rr)
-            })
-            .collect::<Result<Vec<ResourceRecord>, DecodingError>>()?;
+            } else {
+                let (rr, rest) = resource_record::decode(buffer, source)?;
+                additionnals.push(rr);
+                buffer = rest;
+            }
+        }
 
         Ok(Message::new(
             header,
@@ -75,8 +89,56 @@ impl Decoder for MessageDecoder {
             answers,
             authorities,
             additionnals,
+            opt_record,
         ))
     }
+}
+
+fn is_opt_record(buffer: &[u8]) -> Result<bool, DecodingError> {
+    let type_value = peek_rr_type(buffer)?;
+
+    Ok(type_value == Type::OPT)
+}
+
+/// Peek at the resource record type without consuming the buffer
+/// Assumes we're at the start of a resource record
+fn peek_rr_type(buffer: &[u8]) -> Result<Type, DecodingError> {
+    // Skip domain name to get to type field
+    let mut pos = 0;
+
+    // Handle domain name (labels or compression pointers)
+    loop {
+        if pos >= buffer.len() {
+            return Err(DecodingError::InvalidOptRecord(
+                "Buffer too short to peek type".to_string(),
+            ));
+        }
+
+        let len = buffer[pos];
+
+        if len == 0 {
+            // End of domain name
+            pos += 1;
+            break;
+        } else if (len & 0xC0) == 0xC0 {
+            // Compression pointer (2 bytes)
+            pos += 2;
+            break;
+        } else {
+            // Regular label
+            pos += 1 + len as usize;
+        }
+    }
+
+    // Now we're at the type field (2 bytes)
+    if pos + 2 > buffer.len() {
+        return Err(DecodingError::InvalidOptRecord(
+            "Buffer too short for type field".to_string(),
+        ));
+    }
+
+    let type_value = ((buffer[pos] as u16) << 8) | (buffer[pos + 1] as u16);
+    Type::try_from(type_value).map_err(DecodingError::InvalidResourceRecordType)
 }
 
 #[cfg(test)]
@@ -147,6 +209,7 @@ mod tests {
             vec![],
             vec![],
             vec![],
+            None,
         );
 
         assert_eq!(expected_message, m.unwrap());
@@ -190,6 +253,7 @@ mod tests {
             vec![],
             vec![],
             vec![],
+            None,
         );
 
         let message = decoder.decode(MESSAGE_WITH_TWO_QUESTIONS).unwrap();
@@ -246,6 +310,7 @@ mod tests {
             )],
             vec![],
             vec![],
+            None,
         );
 
         let message = decoder.decode(response_buffer).unwrap();

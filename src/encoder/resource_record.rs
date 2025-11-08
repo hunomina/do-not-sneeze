@@ -182,12 +182,12 @@ mod tests {
 
     #[test]
     fn encode_type_aaaa_string_compressed() {
-        let ipv6_str = "2001:db8::1".to_string();
+        let ipv6_str = Ipv6Addr::new(0x2607, 0xf8b0, 0x4004, 0x0c07, 0, 0, 0, 0x71).to_string();
         let encoded = encode_type_aaaa_string(ipv6_str);
 
         let expected = [
-            0x20, 0x01, 0x0d, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x01,
+            0x26, 0x07, 0xf8, 0xb0, 0x40, 0x04, 0x0c, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x71,
         ];
 
         assert_eq!(expected, encoded);
@@ -195,7 +195,7 @@ mod tests {
 
     #[test]
     fn encode_type_aaaa_string_loopback() {
-        let ipv6_str = "::1".to_string();
+        let ipv6_str = Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1).to_string();
         let encoded = encode_type_aaaa_string(ipv6_str);
 
         let expected = [
@@ -208,7 +208,8 @@ mod tests {
 
     #[test]
     fn encode_type_aaaa_string_full() {
-        let ipv6_str = "2607:f8b0:4004:c07::71".to_string();
+        let ipv6_str = Ipv6Addr::new(0x2607, 0xf8b0, 0x4004, 0xc07, 0, 0, 0, 0x71).to_string();
+
         let encoded = encode_type_aaaa_string(ipv6_str);
 
         let expected = [

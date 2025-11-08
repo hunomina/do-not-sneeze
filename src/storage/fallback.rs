@@ -8,7 +8,7 @@ use crate::{
     decoder::{Decoder, DecodingError},
     encoder::Encoder,
     storage::{RepositoryError, ResourceRecordRepository},
-    transport::UDP_MAX_MESSAGE_SIZE,
+    transport::{EDNS_STANDARD_UDP_PAYLOAD_SIZE, UDP_MAX_MESSAGE_SIZE},
 };
 
 use std::{
@@ -29,7 +29,7 @@ impl<T: ToSocketAddrs + Clone, D: Decoder, E: Encoder> ResourceRecordRepository
         &mut self,
         question: Question,
     ) -> Result<Vec<ResourceRecord>, RepositoryError> {
-        println!("Question to fallback server: {:?}", question);
+        //println!("Question to fallback server: {:?}", question);
 
         let response_from_fallback_server = fetch_from_other_server(
             &self.encoder,
@@ -38,10 +38,10 @@ impl<T: ToSocketAddrs + Clone, D: Decoder, E: Encoder> ResourceRecordRepository
             generate_message_with_question(question),
         );
 
-        println!(
-            "Response from fallback server: {:?}",
-            response_from_fallback_server
-        );
+        //println!(
+        //    "Response from fallback server: {:?}",
+        //    response_from_fallback_server
+        //);
 
         match response_from_fallback_server {
             Ok(message) => Ok(message.answers),
@@ -60,8 +60,7 @@ fn fetch_from_other_server<T: ToSocketAddrs + Clone, D: Decoder, E: Encoder>(
     fallback_server_address: T,
     message: Message,
 ) -> Result<Message, DecodingError> {
-    let mut buf = [0; UDP_MAX_MESSAGE_SIZE / 8];
-
+    let mut buf = [0; EDNS_STANDARD_UDP_PAYLOAD_SIZE / 8]; // could be improved by only allocating based on if EDNS is enabled
     let encode_message = encoder.encode(message);
 
     let fallback_server = UdpSocket::bind("0.0.0.0:0").unwrap();
@@ -72,12 +71,7 @@ fn fetch_from_other_server<T: ToSocketAddrs + Clone, D: Decoder, E: Encoder>(
     fallback_server.send(encode_message.as_slice()).unwrap();
 
     match fallback_server.recv_from(&mut buf) {
-        Ok((amt, _)) => {
-            println!("Received {} bytes from fallback server", amt);
-            println!("Buffer: {:?}", &buf[..amt]);
-            println!("Max message size: {}", UDP_MAX_MESSAGE_SIZE / 8);
-            decoder.decode(&buf[..amt])
-        }
+        Ok((amt, _)) => decoder.decode(&buf[..amt]),
         Err(e) => {
             panic!("couldn't receive a datagram: {}", e);
         }
@@ -85,8 +79,7 @@ fn fetch_from_other_server<T: ToSocketAddrs + Clone, D: Decoder, E: Encoder>(
 }
 
 fn generate_message_with_question(question: Question) -> Message {
-    // IMPROVEMENT: problem with building our own headers (and message)
-    // is that we potentially discard some of the original request properties
+    // todo IMPROVEMENT: problem with building our own headers (and message) is that we potentially discard some of the original request properties
     Message::new(
         Header {
             id: time::SystemTime::now()
@@ -110,5 +103,6 @@ fn generate_message_with_question(question: Question) -> Message {
         vec![],
         vec![],
         vec![],
+        None,
     )
 }

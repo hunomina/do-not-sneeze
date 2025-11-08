@@ -40,7 +40,7 @@ impl<T: ToSocketAddrs + Clone, D: Decoder, E: Encoder> ResourceRecordRepository
 
         if !in_memory_records.is_empty() {
             println!(
-                "Found records in in-memory repository: {:?}",
+                "💾 Found records in in-memory repository: {:?}",
                 in_memory_records.len()
             );
             return Ok(in_memory_records);
@@ -50,7 +50,7 @@ impl<T: ToSocketAddrs + Clone, D: Decoder, E: Encoder> ResourceRecordRepository
             self.fallback_repository.get_resource_records(question)?;
 
         println!(
-            "Found records in fallback repository: {:?}",
+            "🔍 Found records in fallback repository: {:?}",
             fallback_repository_records.len()
         );
 
