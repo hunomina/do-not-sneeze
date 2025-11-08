@@ -42,7 +42,7 @@ const RESPONSE_CODE_BIT_MASK: u16 = 0b0000000000001111;
 
 pub type MessageId = u16;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum MessageType {
     Query,
     Response,
@@ -57,7 +57,7 @@ impl From<u16> for MessageType {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Header {
     pub id: MessageId,
     pub qr: MessageType,
@@ -74,7 +74,7 @@ pub struct Header {
     pub additional_count: u16,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum QueryType {
     Standard,
     Inverse,
@@ -93,7 +93,7 @@ impl TryFrom<u16> for QueryType {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum ResponseCode {
     NoError,
     FormatError,

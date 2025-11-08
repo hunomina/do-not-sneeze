@@ -8,3 +8,5 @@
 pub const DNS_PORT: u16 = 53;
 
 pub const UDP_MAX_MESSAGE_SIZE: usize = 512;
+
+pub const EDNS_STANDARD_UDP_PAYLOAD_SIZE: usize = 4096;
