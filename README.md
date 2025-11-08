@@ -145,7 +145,7 @@ Truncated responses:
 
 ## Next features in the pipes
 
-- [*] EDNS(0) support
+- [x] EDNS(0) support
 - [ ] TCP support
 - [ ] Additional record type implementations (MX, NS, CNAME, etc.)
 - [ ] TTL-based cache expiration
