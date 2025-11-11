@@ -12,6 +12,7 @@ For educational purposes, this project aims to use as little external dependenci
 
 - **DNS Message Handling**: Encodes and decodes DNS messages following RFC 1035
 - **Multi-threaded Server**: Handles concurrent DNS queries using thread-per-request model
+- **UDP and TCP Transport**: Full support for both UDP (port 53) and TCP (port 53) protocols
 - **Smart Caching**: Two-tier storage with in-memory cache and upstream DNS fallback
 - **Upstream DNS Integration**: Automatically queries upstream DNS (e.g., 8.8.8.8) for unknown domains
 - **Resource Record Support**: A, AAAA, and TXT records fully implemented, 18 additional record types defined
@@ -30,7 +31,7 @@ src/
 ├── decoder/          # Binary to DNS message parsing
 ├── encoder/          # DNS message to binary serialization
 ├── storage/          # Record storage backends
-├── server.rs         # UDP server on port 53
+├── server.rs         # UDP and TCP server on port 53
 ├── transport.rs      # Transport constants
 ├── utils.rs          # Bit manipulation utilities
 └── main.rs           # Application entry point
@@ -83,7 +84,7 @@ cargo test
 ### Testing a running instance with dig
 
 ```bash
-# Query A record
+# Query A record (UDP)
 dig @127.0.0.1 google.com A
 
 # Query AAAA record (IPv6)
@@ -92,6 +93,9 @@ dig @127.0.0.1 google.com AAAA
 # Query TXT record
 dig @127.0.0.1 google.com TXT
 
+# Force TCP transport
+dig @127.0.0.1 google.com A +tcp
+
 # Force EDNS(0) support (server responds with OPT record)
 dig @127.0.0.1 google.com A +edns=0
 
@@ -99,13 +103,15 @@ dig @127.0.0.1 google.com A +edns=0
 dig @127.0.0.1 google.com A +noedns
 ```
 
-**Note**: The server fully supports EDNS(0). When a client sends an OPT record, the server will respond with an OPT record indicating support for larger UDP payloads (4096 bytes).
+**Note**: The server fully supports EDNS(0). When a client sends an OPT record, the server will respond with an OPT record indicating support for larger UDP payloads (4096 bytes). TCP transport is also fully supported with proper message framing (2-byte length prefix per RFC 1035).
 
 ## How It Works
 
 ### Request Flow
 
-1. **Listen**: UDP socket receives DNS query on port 53
+1. **Listen**: UDP or TCP socket receives DNS query on port 53
+   - **UDP**: Direct datagram reception
+   - **TCP**: Read 2-byte length prefix, then read message body
 2. **Decode**: Binary message parsed into structured DNS Message
 3. **Query Storage**:
    - Check in-memory cache first
@@ -113,11 +119,13 @@ dig @127.0.0.1 google.com A +noedns
    - Cache upstream responses for future queries
 4. **Format Response**: Original message converted to response with answers
 5. **Encode**: DNS response serialized back to binary format
-6. **Check Size**: Verify response fits within UDP size limits
+6. **Check Size** (UDP only): Verify response fits within UDP size limits
    - Standard DNS: 512 bytes (RFC 1035)
    - With EDNS(0): Up to 4096 bytes (configurable via OPT record)
    - If too large: Truncate response (set TC flag, clear all answer/authority/additional sections)
-7. **Send**: Response sent back to client via UDP
+7. **Send**: Response sent back to client
+   - **UDP**: Direct datagram transmission
+   - **TCP**: Send 2-byte length prefix followed by message body
 
 ### Response Truncation
 
@@ -146,7 +154,7 @@ Truncated responses:
 ## Next features in the pipes
 
 - [x] EDNS(0) support
-- [ ] TCP support
+- [x] TCP support (RFC 1035 compliant with 2-byte length framing)
 - [ ] Additional record type implementations (MX, NS, CNAME, etc.)
 - [ ] TTL-based cache expiration
 

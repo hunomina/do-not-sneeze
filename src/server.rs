@@ -1,6 +1,7 @@
 use std::{
     env,
-    net::UdpSocket,
+    io::{Read, Write},
+    net::{TcpListener, UdpSocket},
     sync::{Arc, Mutex},
     thread,
 };
@@ -42,35 +43,104 @@ where
             .ok()
             .and_then(|p| p.parse::<u16>().ok())
             .unwrap_or(DNS_PORT);
-        let socket = UdpSocket::bind(format!("0.0.0.0:{}", port)).unwrap();
-
-        println!("🚀 DNS server running on port {}", port);
 
         let decoder = Arc::new(self.decoder);
         let encoder = Arc::new(self.encoder);
         let storage = Arc::new(Mutex::new(self.storage));
 
-        let mut buf = [0; UDP_MAX_MESSAGE_SIZE / 8];
-        loop {
-            let socket_clone = socket.try_clone().unwrap();
-            match socket.recv_from(&mut buf) {
-                Ok((amt, src)) => {
-                    let decoder = Arc::clone(&decoder);
-                    let encoder = Arc::clone(&encoder);
-                    let storage = Arc::clone(&storage);
+        let udp_handle = Self::run_udp(
+            Arc::clone(&decoder),
+            Arc::clone(&encoder),
+            Arc::clone(&storage),
+            port,
+        );
 
-                    thread::spawn(move || {
-                        let buffer = &buf[..amt];
-                        let encoded_response = Self::handle(buffer, decoder, encoder, storage);
+        let tcp_handle = Self::run_tcp(
+            Arc::clone(&decoder),
+            Arc::clone(&encoder),
+            Arc::clone(&storage),
+            port,
+        );
 
-                        socket_clone.send_to(&encoded_response, src).unwrap();
-                    });
-                }
-                Err(e) => {
-                    println!("couldn't receive a datagram: {}", e);
+        udp_handle.join().unwrap();
+        tcp_handle.join().unwrap();
+    }
+
+    fn run_udp(
+        decoder: Arc<D>,
+        encoder: Arc<E>,
+        storage: Arc<Mutex<R>>,
+        port: u16,
+    ) -> thread::JoinHandle<()> {
+        thread::spawn(move || {
+            let socket = UdpSocket::bind(format!("0.0.0.0:{}", port)).unwrap();
+            println!("🚀💨 UDP DNS server running on port {}", port);
+
+            let mut buf = [0; UDP_MAX_MESSAGE_SIZE / 8];
+            loop {
+                let socket_clone = socket.try_clone().unwrap();
+                match socket.recv_from(&mut buf) {
+                    Ok((amt, src)) => {
+                        let decoder = Arc::clone(&decoder);
+                        let encoder = Arc::clone(&encoder);
+                        let storage = Arc::clone(&storage);
+
+                        thread::spawn(move || {
+                            let buffer = &buf[..amt];
+                            let encoded_response = Self::handle(buffer, decoder, encoder, storage);
+
+                            socket_clone.send_to(&encoded_response, src).unwrap();
+                        });
+                    }
+                    Err(e) => {
+                        println!("couldn't receive a datagram: {}", e);
+                    }
                 }
             }
-        }
+        })
+    }
+
+    fn run_tcp(
+        decoder: Arc<D>,
+        encoder: Arc<E>,
+        storage: Arc<Mutex<R>>,
+        port: u16,
+    ) -> thread::JoinHandle<()> {
+        thread::spawn(move || {
+            let listener = TcpListener::bind(format!("0.0.0.0:{}", port)).unwrap();
+            println!("🚀🔗 TCP DNS server running on port {}", port);
+
+            for stream in listener.incoming() {
+                let decoder = Arc::clone(&decoder);
+                let encoder = Arc::clone(&encoder);
+                let storage = Arc::clone(&storage);
+
+                thread::spawn(|| {
+                    match stream {
+                        Ok(mut stream) => {
+                            let message_size = {
+                                let mut size_buf = [0; 2];
+                                stream.read_exact(&mut size_buf).unwrap();
+                                u16::from_be_bytes(size_buf) as usize
+                            };
+
+                            let mut buffer = vec![0u8; message_size];
+                            stream.read_exact(&mut buffer).unwrap();
+
+                            let encoded_response =
+                                Self::handle(buffer.as_slice(), decoder, encoder, storage);
+
+                            let response_length = (encoded_response.len() as u16).to_be_bytes();
+                            stream.write_all(&response_length).unwrap();
+                            stream.write_all(&encoded_response).unwrap();
+                        }
+                        Err(e) => {
+                            println!("Failed to accept TCP connection: {}", e);
+                        }
+                    };
+                });
+            }
+        })
     }
 
     fn handle(buffer: &[u8], decoder: Arc<D>, encoder: Arc<E>, storage: Arc<Mutex<R>>) -> Vec<u8> {

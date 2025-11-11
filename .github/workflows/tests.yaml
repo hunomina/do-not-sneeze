@@ -31,9 +31,23 @@ jobs:
           echo "DNS_PID=$DNS_PID" >> $GITHUB_ENV
           sleep 1
 
-      - name: Test DNS query with EDNS
+      - name: Test UDP DNS query
         run: |
           OUTPUT=$(dig @127.0.0.1 -p 5353 google.com TXT)
+          echo "$OUTPUT"
+
+          # Verify expected content in output
+          echo "$OUTPUT" | grep -q ";; flags: qr rd; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1" || (echo "Unexpected answer header" && exit 1)
+          echo "$OUTPUT" | grep -q "EDNS: version: 0" || (echo "Missing EDNS version 0" && exit 1)
+          echo "$OUTPUT" | grep -q "google.com.*IN.*TXT" || (echo "Missing TXT question" && exit 1)
+          echo "$OUTPUT" | grep -q "google.com.*3600.*IN.*TXT.*\"some content for google.com\"" || (echo "Missing expected TXT answer" && exit 1)
+          echo "$OUTPUT" | grep -q "SERVER: 127.0.0.1#5353(127.0.0.1) (UDP)" || (echo "Local server was not used" && exit 1)
+
+          echo "✅ All validations passed!"
+
+      - name: Test TCP DNS query
+        run: |
+          OUTPUT=$(dig @127.0.0.1 -p 5353 google.com TXT +tcp)
           echo "$OUTPUT"
 
           # Verify expected content in output
