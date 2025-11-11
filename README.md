@@ -15,7 +15,7 @@ For educational purposes, this project aims to use as little external dependenci
 - **UDP and TCP Transport**: Full support for both UDP (port 53) and TCP (port 53) protocols
 - **Smart Caching**: Two-tier storage with in-memory cache and upstream DNS fallback
 - **Upstream DNS Integration**: Automatically queries upstream DNS (e.g., 8.8.8.8) for unknown domains
-- **Resource Record Support**: A, AAAA, and TXT records fully implemented, 18 additional record types defined
+- **Resource Record Support**: A, AAAA, TXT, and CNAME records fully implemented, 17 additional record types defined
 - **EDNS(0) Support**: Extension Mechanisms for DNS (RFC 6891) with OPT pseudo-record handling
 - **Response Truncation**: Automatic truncation of responses exceeding UDP size limits (512 bytes standard, 4096 bytes with EDNS)
 - **RFC 1035 Compliant**: Proper handling of DNS headers, questions, and resource records
@@ -51,14 +51,14 @@ src/
 | **A** | 1 | ✅ Fully implemented (IPv4 addresses) |
 | **AAAA** | 28 | ✅ Fully implemented (IPv6 addresses, RFC 3596) |
 | **TXT** | 16 | ✅ Fully implemented (with RFC 1035 character-string format) |
+| **CNAME** | 5 | ✅ Fully implemented (canonical name alias) |
 | **OPT** | 41 | ✅ Fully implemented (EDNS(0) pseudo-record, RFC 6891) |
 | NS | 2 | ⚠️ Defined, encoding/decoding not implemented |
-| CNAME | 5 | ⚠️ Defined, encoding/decoding not implemented |
 | SOA | 6 | ⚠️ Defined, encoding/decoding not implemented |
 | MX | 15 | ⚠️ Defined, encoding/decoding not implemented |
 | PTR | 12 | ⚠️ Defined, encoding/decoding not implemented |
 
-Plus 18 additional record types (NS, CNAME, SOA, MX, PTR, HINFO, MINFO, WKS, SVCB, HTTPS, etc.)
+Plus 17 additional record types (NS, SOA, MX, PTR, HINFO, MINFO, WKS, SVCB, HTTPS, etc.)
 
 ## Getting Started
 
@@ -92,6 +92,9 @@ dig @127.0.0.1 google.com AAAA
 
 # Query TXT record
 dig @127.0.0.1 google.com TXT
+
+# Query CNAME record
+dig @127.0.0.1 www.example.com CNAME
 
 # Force TCP transport
 dig @127.0.0.1 google.com A +tcp
@@ -155,7 +158,7 @@ Truncated responses:
 
 - [x] EDNS(0) support
 - [x] TCP support (RFC 1035 compliant with 2-byte length framing)
-- [ ] Additional record type implementations (MX, NS, CNAME, etc.)
+- [ ] Additional record type implementations (MX, NS, SOA, PTR, etc.)
 - [ ] TTL-based cache expiration
 
 ## License
