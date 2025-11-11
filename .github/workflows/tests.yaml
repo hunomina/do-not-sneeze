@@ -55,7 +55,7 @@ jobs:
           echo "$OUTPUT" | grep -q "EDNS: version: 0" || (echo "Missing EDNS version 0" && exit 1)
           echo "$OUTPUT" | grep -q "google.com.*IN.*TXT" || (echo "Missing TXT question" && exit 1)
           echo "$OUTPUT" | grep -q "google.com.*3600.*IN.*TXT.*\"some content for google.com\"" || (echo "Missing expected TXT answer" && exit 1)
-          echo "$OUTPUT" | grep -q "SERVER: 127.0.0.1#5353(127.0.0.1) (UDP)" || (echo "Local server was not used" && exit 1)
+          echo "$OUTPUT" | grep -q "SERVER: 127.0.0.1#5353(127.0.0.1) (TCP)" || (echo "Local server was not used" && exit 1)
 
           echo "✅ All validations passed!"
 
