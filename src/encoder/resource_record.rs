@@ -36,6 +36,7 @@ fn encode_resource_data_from_type_and_string(type_: Type, value: Vec<u8>) -> Vec
         Type::A => encode_type_a_string(value).to_vec(),
         Type::AAAA => encode_type_aaaa_string(value).to_vec(),
         Type::TXT => encode_type_txt_string(value),
+        Type::CNAME => value,
         t => unimplemented!("Unimplemented resource record data type encoding {:?}", t),
     }
 }
@@ -238,6 +239,36 @@ mod tests {
             0, 16, // resource data length: 16 bytes
             0x20, 0x01, 0x0d, 0xb8, 0x00, 0x00, 0x00, 0x00, // IPv6 address
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // 2001:db8::1
+        ];
+
+        assert_eq!(expected, encoded_rr.as_slice());
+    }
+
+    #[test]
+    fn encode_cname_resource_record() {
+        // CNAME for www.example.com pointing to example.com
+        let cname_target = DomainName::from("example.com");
+        let cname_data = encode_domain_name(cname_target);
+
+        let rr = ResourceRecord::new(
+            DomainName::from("www.example.com"),
+            Type::CNAME,
+            Class::IN,
+            3600,
+            cname_data,
+        );
+
+        let encoded_rr = encode(rr);
+
+        let expected = [
+            3, b'w', b'w', b'w', 7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o', b'm',
+            0, // name: "www.example.com"
+            0, 5, // type: CNAME (5)
+            0, 1, // class: IN (1)
+            0, 0, 14, 16, // ttl: 3600 seconds
+            0, 13, // resource data length: 13 bytes (including trailing 0)
+            7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o', b'm',
+            0, // cname target: "example.com"
         ];
 
         assert_eq!(expected, encoded_rr.as_slice());

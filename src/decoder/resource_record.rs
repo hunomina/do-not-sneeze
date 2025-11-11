@@ -46,6 +46,7 @@ fn decode_data_from_type_and_buffer(type_: Type, buffer: &[u8]) -> Vec<u8> {
         Type::A => decode_type_a_data(buffer),
         Type::AAAA => decode_type_aaaa_data(buffer),
         Type::TXT => decode_type_txt_data(buffer),
+        Type::CNAME => decode_type_cname_data(buffer),
         _ => "Unknown RR type: {:?}".into(),
     }
 }
@@ -68,6 +69,12 @@ fn decode_type_txt_data(buffer: &[u8]) -> Vec<u8> {
     String::from_utf8_lossy(&buffer[1..=expected_length])
         .as_bytes()
         .to_vec()
+}
+
+fn decode_type_cname_data(buffer: &[u8]) -> Vec<u8> {
+    // CNAME RDATA is a domain name in DNS wire format
+    // Return the buffer as-is (it's already encoded domain name bytes)
+    buffer.to_vec()
 }
 
 #[cfg(test)]
@@ -169,5 +176,35 @@ mod tests {
     #[should_panic(expected = "AAAA record must be exactly 16 bytes")]
     fn decode_aaaa_invalid_length() {
         decode_type_aaaa_data(&[1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn decode_cname_resource_record() {
+        // CNAME for www.example.com pointing to example.com
+        let buffer = [
+            3, b'w', b'w', b'w', 7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o', b'm',
+            0, // name: "www.example.com"
+            0, 5, // type: CNAME (5)
+            0, 1, // class: IN (1)
+            0, 0, 14, 16, // ttl: 3600 seconds
+            0, 13, // resource data length: 13 bytes (including trailing 0)
+            7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o', b'm',
+            0, // cname target: "example.com"
+        ];
+
+        let (rr, buffer) = decode(&buffer, &buffer).unwrap();
+
+        let expected = ResourceRecord::new(
+            DomainName::from("www.example.com"),
+            Type::CNAME,
+            Class::IN,
+            3600,
+            vec![
+                7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o', b'm', 0,
+            ],
+        );
+
+        assert_eq!(expected, rr);
+        assert!(buffer.is_empty(), "Buffer should be empty after decoding");
     }
 }
