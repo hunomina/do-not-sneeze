@@ -6,10 +6,7 @@ use crate::{
     decoder::DecodingError,
     utils::{extract_next_sixteen_bits_from_buffer, extract_next_thirty_two_bits_from_buffer},
 };
-use std::{
-    borrow::Cow,
-    net::{Ipv4Addr, Ipv6Addr},
-};
+use std::net::{Ipv4Addr, Ipv6Addr};
 
 use super::domain_name::decode as decode_domain_name;
 
@@ -33,41 +30,48 @@ pub fn decode<'a>(
 
     let resource_data = decode_data_from_type_and_buffer(type_, data);
 
+    assert!(
+        resource_data.len() == resource_data_length as usize,
+        "Decoded resource data length does not match the expected length"
+    );
+
     Ok((
-        ResourceRecord::new(name, type_, class, ttl, resource_data_length, resource_data),
+        ResourceRecord::new(name, type_, class, ttl, resource_data),
         buffer,
     ))
 }
 
-fn decode_data_from_type_and_buffer(type_: Type, buffer: &[u8]) -> String {
+fn decode_data_from_type_and_buffer(type_: Type, buffer: &[u8]) -> Vec<u8> {
     match type_ {
-        Type::A => decode_type_a_data(buffer).to_string(),
-        Type::AAAA => decode_type_aaaa_data(buffer).to_string(),
-        Type::TXT => decode_type_txt_data(buffer).to_string(),
+        Type::A => decode_type_a_data(buffer),
+        Type::AAAA => decode_type_aaaa_data(buffer),
+        Type::TXT => decode_type_txt_data(buffer),
         _ => "Unknown RR type: {:?}".into(),
     }
 }
 
-fn decode_type_a_data(buffer: &[u8]) -> Ipv4Addr {
+fn decode_type_a_data(buffer: &[u8]) -> Vec<u8> {
     assert!(buffer.len() == 4);
     Ipv4Addr::new(buffer[0], buffer[1], buffer[2], buffer[3])
+        .octets()
+        .to_vec()
 }
 
-fn decode_type_aaaa_data(buffer: &[u8]) -> Ipv6Addr {
+fn decode_type_aaaa_data(buffer: &[u8]) -> Vec<u8> {
     assert_eq!(buffer.len(), 16, "AAAA record must be exactly 16 bytes");
     let octets: [u8; 16] = buffer.try_into().expect("Invalid AAAA record length");
-    Ipv6Addr::from(octets)
+    Ipv6Addr::from(octets).octets().to_vec()
 }
 
-fn decode_type_txt_data(buffer: &[u8]) -> Cow<'_, str> {
+fn decode_type_txt_data(buffer: &[u8]) -> Vec<u8> {
     let expected_length = buffer[0] as usize;
     String::from_utf8_lossy(&buffer[1..=expected_length])
+        .as_bytes()
+        .to_vec()
 }
 
 #[cfg(test)]
 mod tests {
-    use std::net::{Ipv4Addr, Ipv6Addr};
-
     use crate::common::domain_name::DomainName;
 
     use super::*;
@@ -91,8 +95,7 @@ mod tests {
             Type::A,
             Class::IN,
             60,
-            4,
-            Ipv4Addr::new(192, 168, 0, 1).to_string(),
+            vec![192, 168, 0, 1],
         );
 
         assert_eq!(expected, rr);
@@ -121,8 +124,10 @@ mod tests {
             Type::AAAA,
             Class::IN,
             60,
-            16,
-            "2001:db8::1".to_string(),
+            vec![
+                0x20, 0x01, 0x0d, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x01,
+            ],
         );
 
         assert_eq!(expected, rr);
@@ -131,33 +136,33 @@ mod tests {
 
     #[test]
     fn decode_aaaa_loopback() {
-        // IPv6 loopback: ::1
-        // Bytes: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01
-        let buffer = [
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x01,
-        ];
-
-        let result = decode_type_aaaa_data(&buffer);
-        assert_eq!(result, Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1));
-        assert_eq!(result.to_string(), "::1");
-    }
-
-    #[test]
-    fn decode_aaaa_full_address() {
-        // IPv6 address: 2607:f8b0:4004:c07::71 (Google IPv6)
-        // Full form: 2607:f8b0:4004:0c07:0000:0000:0000:0071
-        let buffer = [
-            0x26, 0x07, 0xf8, 0xb0, 0x40, 0x04, 0x0c, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x71,
-        ];
+        let buffer = "::1".parse::<std::net::Ipv6Addr>().unwrap().octets();
 
         let result = decode_type_aaaa_data(&buffer);
         assert_eq!(
             result,
-            Ipv6Addr::new(0x2607, 0xf8b0, 0x4004, 0x0c07, 0, 0, 0, 0x71)
+            vec![
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x01,
+            ]
         );
-        assert_eq!(result.to_string(), "2607:f8b0:4004:c07::71");
+    }
+
+    #[test]
+    fn decode_aaaa_full_address() {
+        let buffer = "2607:f8b0:4004:c07::71"
+            .parse::<std::net::Ipv6Addr>()
+            .unwrap()
+            .octets();
+
+        let result = decode_type_aaaa_data(&buffer);
+        assert_eq!(
+            result,
+            vec![
+                0x26, 0x07, 0xf8, 0xb0, 0x40, 0x04, 0x0c, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x71,
+            ]
+        );
     }
 
     #[test]

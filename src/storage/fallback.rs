@@ -8,7 +8,7 @@ use crate::{
     decoder::{Decoder, DecodingError},
     encoder::Encoder,
     storage::{RepositoryError, ResourceRecordRepository},
-    transport::{EDNS_STANDARD_UDP_PAYLOAD_SIZE, UDP_MAX_MESSAGE_SIZE},
+    transport::EDNS_STANDARD_UDP_PAYLOAD_SIZE,
 };
 
 use std::{

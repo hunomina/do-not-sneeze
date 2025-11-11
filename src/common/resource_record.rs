@@ -11,8 +11,7 @@ pub struct ResourceRecord {
     pub type_: Type,
     pub class: QuestionClass,
     pub ttl: TimeToLive,
-    pub resource_data_length: u16,
-    pub resource_data: String,
+    pub resource_data: Vec<u8>,
 }
 
 impl ResourceRecord {
@@ -21,15 +20,13 @@ impl ResourceRecord {
         type_: Type,
         class: QuestionClass,
         ttl: TimeToLive,
-        resource_data_length: u16,
-        resource_data: String,
+        resource_data: Vec<u8>,
     ) -> Self {
         Self {
             name,
             type_,
             class,
             ttl,
-            resource_data_length,
             resource_data,
         }
     }

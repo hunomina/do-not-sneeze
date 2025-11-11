@@ -17,24 +17,21 @@ pub fn encode(resource_record: ResourceRecord) -> Vec<u8> {
 
     push_u32_to_u8_vec(&mut r, resource_record.ttl);
 
-    // Write the actual length of the encoded data
-    push_u16_to_u8_vec(&mut r, resource_record.resource_data_length);
-
     // Encode the resource data first to get its actual length
     let encoded_data = encode_resource_data_from_type_and_string(
         resource_record.type_,
         resource_record.resource_data,
     );
 
-    assert!(resource_record.resource_data_length as usize == encoded_data.len());
-
+    // Write the actual length of the encoded data
+    push_u16_to_u8_vec(&mut r, encoded_data.len() as u16);
     // Write the encoded data
     r.extend(encoded_data);
 
     r
 }
 
-fn encode_resource_data_from_type_and_string(type_: Type, value: String) -> Vec<u8> {
+fn encode_resource_data_from_type_and_string(type_: Type, value: Vec<u8>) -> Vec<u8> {
     match type_ {
         Type::A => encode_type_a_string(value).to_vec(),
         Type::AAAA => encode_type_aaaa_string(value).to_vec(),
@@ -43,33 +40,33 @@ fn encode_resource_data_from_type_and_string(type_: Type, value: String) -> Vec<
     }
 }
 
-fn encode_type_txt_string(value: String) -> Vec<u8> {
-    let bytes = value.as_bytes();
-    let mut result = Vec::with_capacity(bytes.len() + 1);
+fn encode_type_txt_string(value: Vec<u8>) -> Vec<u8> {
+    let s = String::from_utf8_lossy(&value);
+    let mut result = Vec::with_capacity(value.len() + 1);
     // TXT records must be prefixed with a length byte
-    result.push(bytes.len() as u8);
-    result.extend_from_slice(bytes);
+    result.push(s.len() as u8);
+    result.extend_from_slice(value.as_slice());
     result
 }
 
-fn encode_type_a_string(value: String) -> [u8; 4] {
-    value
-        .parse::<Ipv4Addr>()
-        .unwrap_or_else(|_| panic!("Invalid IPv4 address: {}", value))
-        .octets()
+fn encode_type_a_string(bytes: Vec<u8>) -> [u8; 4] {
+    assert!(bytes.len() == 4, "A record must be exactly 4 bytes");
+
+    Ipv4Addr::from([bytes[0], bytes[1], bytes[2], bytes[3]]).octets()
 }
 
-fn encode_type_aaaa_string(value: String) -> [u8; 16] {
-    value
-        .parse::<Ipv6Addr>()
-        .unwrap_or_else(|_| panic!("Invalid IPv6 address: {}", value))
-        .octets()
+fn encode_type_aaaa_string(bytes: Vec<u8>) -> [u8; 16] {
+    assert!(bytes.len() == 16, "AAAA record must be exactly 16 bytes");
+
+    Ipv6Addr::from([
+        bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7], bytes[8],
+        bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15],
+    ])
+    .octets()
 }
 
 #[cfg(test)]
 mod tests {
-    use std::net::{Ipv4Addr, Ipv6Addr};
-
     use crate::common::{
         domain_name::DomainName,
         question::Class,
@@ -85,8 +82,7 @@ mod tests {
             Type::A,
             Class::IN,
             60,
-            4,
-            Ipv4Addr::new(192, 168, 0, 1).to_string(),
+            vec![192, 168, 0, 1],
         );
 
         let encoded_rr = encode(rr);
@@ -106,8 +102,12 @@ mod tests {
 
     #[test]
     fn encode_type_a() {
-        let text = "192.168.0.1".to_string();
-        let encoded = encode_type_a_string(text);
+        let ipv4 = "192.168.0.1"
+            .parse::<std::net::Ipv4Addr>()
+            .unwrap()
+            .octets()
+            .to_vec();
+        let encoded = encode_type_a_string(ipv4);
 
         // Expected: length byte (11) followed by the text
         let expected = vec![192, 168, 0, 1];
@@ -117,7 +117,7 @@ mod tests {
 
     #[test]
     fn encode_type_txt_string_with_simple_text() {
-        let text = "hello world".to_string();
+        let text = "hello world".as_bytes().to_vec();
         let encoded = encode_type_txt_string(text);
 
         // Expected: length byte (11) followed by the text
@@ -130,7 +130,7 @@ mod tests {
 
     #[test]
     fn encode_type_txt_string_empty() {
-        let text = String::new();
+        let text = String::new().as_bytes().to_vec();
         let encoded = encode_type_txt_string(text);
 
         // Expected: just a length byte of 0
@@ -142,7 +142,7 @@ mod tests {
     #[test]
     fn encode_type_txt_string_max_length() {
         // TXT records can have up to 255 characters per string
-        let text = "a".repeat(255);
+        let text = "a".repeat(255).as_bytes().to_vec();
         let encoded = encode_type_txt_string(text);
 
         // Expected: length byte (255) followed by 255 'a' characters
@@ -153,14 +153,13 @@ mod tests {
 
     #[test]
     fn encode_txt_resource_record() {
-        let text_content = "some content for google.com";
+        let text_content = "some content for google.com".as_bytes().to_vec();
         let rr = ResourceRecord::new(
             DomainName::from("google.com"),
             Type::TXT,
             Class::IN,
             3600,
-            (text_content.len() + 1) as u16, // +1 for length byte
-            text_content.to_string(),
+            text_content,
         );
 
         let encoded_rr = encode(rr);
@@ -181,9 +180,13 @@ mod tests {
     }
 
     #[test]
-    fn encode_type_aaaa_string_compressed() {
-        let ipv6_str = Ipv6Addr::new(0x2607, 0xf8b0, 0x4004, 0x0c07, 0, 0, 0, 0x71).to_string();
-        let encoded = encode_type_aaaa_string(ipv6_str);
+    fn encode_regular_type_aaaa_string() {
+        let ipv6 = "2607:f8b0:4004:0c07::71"
+            .parse::<std::net::Ipv6Addr>()
+            .unwrap()
+            .octets()
+            .to_vec();
+        let encoded = encode_type_aaaa_string(ipv6);
 
         let expected = [
             0x26, 0x07, 0xf8, 0xb0, 0x40, 0x04, 0x0c, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -195,26 +198,16 @@ mod tests {
 
     #[test]
     fn encode_type_aaaa_string_loopback() {
-        let ipv6_str = Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1).to_string();
-        let encoded = encode_type_aaaa_string(ipv6_str);
+        let ipv6 = "::1"
+            .parse::<std::net::Ipv6Addr>()
+            .unwrap()
+            .octets()
+            .to_vec();
+        let encoded = encode_type_aaaa_string(ipv6);
 
         let expected = [
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x01,
-        ];
-
-        assert_eq!(expected, encoded);
-    }
-
-    #[test]
-    fn encode_type_aaaa_string_full() {
-        let ipv6_str = Ipv6Addr::new(0x2607, 0xf8b0, 0x4004, 0xc07, 0, 0, 0, 0x71).to_string();
-
-        let encoded = encode_type_aaaa_string(ipv6_str);
-
-        let expected = [
-            0x26, 0x07, 0xf8, 0xb0, 0x40, 0x04, 0x0c, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x71,
         ];
 
         assert_eq!(expected, encoded);
@@ -227,8 +220,11 @@ mod tests {
             Type::AAAA,
             Class::IN,
             3600,
-            16,
-            "2001:db8::1".to_string(),
+            "2001:db8::1"
+                .parse::<std::net::Ipv6Addr>()
+                .unwrap()
+                .octets()
+                .to_vec(),
         );
 
         let encoded_rr = encode(rr);
@@ -245,11 +241,5 @@ mod tests {
         ];
 
         assert_eq!(expected, encoded_rr.as_slice());
-    }
-
-    #[test]
-    #[should_panic(expected = "Invalid IPv6 address")]
-    fn encode_type_aaaa_string_invalid() {
-        encode_type_aaaa_string("not an ipv6 address".to_string());
     }
 }

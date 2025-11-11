@@ -365,8 +365,7 @@ mod tests {
             RRType::A,
             Class::IN,
             300,
-            4,
-            ip.to_string(),
+            ip.parse::<std::net::Ipv4Addr>().unwrap().octets().to_vec(),
         )
     }
 }

@@ -28,18 +28,16 @@ fn main() {
         Type::A,
         common::question::Class::IN,
         3600,
-        4,
-        "74.125.193.101".to_string(),
+        vec![74, 125, 193, 101], // Google's IPv4 address
     ));
 
-    let text_content = "some content for google.com";
+    let text_content = "some content for google.com".as_bytes().to_vec();
     in_memory_repository.save(ResourceRecord::new(
         DomainName::from("google.com"),
         Type::TXT,
         common::question::Class::IN,
         3600,
-        (text_content.len() as u16) + 1, // +1 because of how TXT record data is encoded
-        text_content.to_string(),
+        text_content,
     ));
 
     in_memory_repository.save(ResourceRecord::new(
@@ -47,8 +45,11 @@ fn main() {
         Type::AAAA,
         common::question::Class::IN,
         3600,
-        16,                                   // IPv6 addresses are always 16 bytes
-        "2607:f8b0:4004:c07::71".to_string(), // Google IPv6 address
+        "2607:f8b0:4004:c07::71"
+            .parse::<std::net::Ipv6Addr>()
+            .unwrap()
+            .octets()
+            .to_vec(), // Google IPv6 address
     ));
 
     let fallback_repository = FallbackRepository {
