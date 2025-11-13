@@ -46,6 +46,7 @@ fn decode_data_from_type_and_buffer(type_: Type, buffer: &[u8]) -> Vec<u8> {
         Type::A => decode_type_a_data(buffer),
         Type::AAAA => decode_type_aaaa_data(buffer),
         Type::TXT => decode_type_txt_data(buffer),
+        Type::MX => decode_type_mx_data(buffer),
         Type::CNAME | Type::NS => buffer.to_vec(),
         _ => "Unknown RR type: {:?}".into(),
     }
@@ -69,6 +70,34 @@ fn decode_type_txt_data(buffer: &[u8]) -> Vec<u8> {
     String::from_utf8_lossy(&buffer[1..=expected_length])
         .as_bytes()
         .to_vec()
+}
+
+fn decode_type_mx_data(buffer: &[u8]) -> Vec<u8> {
+    // MX record format: preference (2 bytes) + domain name
+    assert!(
+        buffer.len() >= 2,
+        "MX record must have at least 2 bytes for preference"
+    );
+
+    let (_, domain_buffer) = extract_next_sixteen_bits_from_buffer(buffer);
+
+    // Verify domain name is present and properly formatted
+    assert!(
+        !domain_buffer.is_empty(),
+        "MX record must contain a domain name after preference"
+    );
+
+    // Decode the domain name to verify it's valid and buffer is fully consumed
+    let (_, remaining) = decode_domain_name(domain_buffer, domain_buffer);
+
+    // Assert that the entire buffer has been consumed
+    assert!(
+        remaining.is_empty(),
+        "Buffer must be empty after decoding MX record"
+    );
+
+    // Return the original buffer as-is
+    buffer.to_vec()
 }
 
 #[cfg(test)]
@@ -231,5 +260,80 @@ mod tests {
 
         assert_eq!(expected, rr);
         assert!(buffer.is_empty(), "Buffer should be empty after decoding");
+    }
+
+    #[test]
+    fn decode_mx_resource_record() {
+        // MX record for example.com pointing to mail.example.com with preference 10
+        let buffer = [
+            7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o', b'm',
+            0, // name: "example.com"
+            0, 15, // type: MX (15)
+            0, 1, // class: IN (1)
+            0, 0, 14, 16, // ttl: 3600 seconds
+            0, 20, // resource data length: 19 bytes (2 for preference + 17 for domain)
+            0, 10, // preference: 10
+            4, b'm', b'a', b'i', b'l', 7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o',
+            b'm', 0, // exchange: "mail.example.com"
+        ];
+
+        let (rr, buffer) = decode(&buffer, &buffer).unwrap();
+
+        let expected = ResourceRecord::new(
+            DomainName::from("example.com"),
+            Type::MX,
+            Class::IN,
+            3600,
+            vec![
+                0, 10, // preference: 10
+                4, b'm', b'a', b'i', b'l', 7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c',
+                b'o', b'm', 0, // exchange: "mail.example.com"
+            ],
+        );
+
+        assert_eq!(expected, rr);
+        assert!(buffer.is_empty(), "Buffer should be empty after decoding");
+    }
+
+    #[test]
+    fn decode_type_mx_data_with_preference_and_domain() {
+        // MX record: preference 10, mail.example.com
+        let buffer = [
+            0, 10, // preference: 10
+            4, b'm', b'a', b'i', b'l', 7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o',
+            b'm', 0, // exchange: "mail.example.com"
+        ];
+
+        let result = decode_type_mx_data(&buffer);
+
+        // Should return the entire buffer
+        assert_eq!(result, buffer.to_vec());
+        assert_eq!(result.len(), 20, "MX data should be 20 bytes");
+    }
+
+    #[test]
+    #[should_panic(expected = "MX record must have at least 2 bytes for preference")]
+    fn decode_type_mx_data_empty_buffer() {
+        decode_type_mx_data(&[]);
+    }
+
+    #[test]
+    #[should_panic(expected = "MX record must contain a domain name after preference")]
+    fn decode_type_mx_data_missing_domain() {
+        // Only preference, no domain name
+        decode_type_mx_data(&[0, 10]);
+    }
+
+    #[test]
+    #[should_panic(expected = "Buffer must be empty after decoding MX record")]
+    fn decode_type_mx_data_extra_bytes_after_domain() {
+        // Valid MX record but with extra bytes at the end
+        let buffer = [
+            0, 10, // preference: 10
+            4, b'm', b'a', b'i', b'l', 3, b'c', b'o', b'm', 0, // exchange: "mail.com"
+            1, 2, 3, // extra bytes that shouldn't be here
+        ];
+
+        decode_type_mx_data(&buffer);
     }
 }

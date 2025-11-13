@@ -36,7 +36,7 @@ fn encode_resource_data_from_type_and_string(type_: Type, value: Vec<u8>) -> Vec
         Type::A => encode_type_a_string(value).to_vec(),
         Type::AAAA => encode_type_aaaa_string(value).to_vec(),
         Type::TXT => encode_type_txt_string(value),
-        Type::CNAME | Type::NS => value,
+        Type::CNAME | Type::NS | Type::MX => value,
         t => unimplemented!("Unimplemented resource record data type encoding {:?}", t),
     }
 }
@@ -300,6 +300,44 @@ mod tests {
             3, b'n', b's', b'1', 7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o', b'm',
             0, // ns target: "ns1.example.com"
         ];
+
+        assert_eq!(expected, encoded_rr.as_slice());
+    }
+
+    #[test]
+    fn encode_mx_resource_record() {
+        // MX record for example.com pointing to mail.example.com with preference 10
+        let mx_exchange = DomainName::from("mail.example.com");
+        let mx_exchange_encoded = encode_domain_name(mx_exchange);
+
+        // MX RDATA = preference (2 bytes) + exchange (domain name)
+        let mut mx_data = vec![];
+        push_u16_to_u8_vec(&mut mx_data, 10); // preference = 10
+        mx_data.extend(mx_exchange_encoded);
+
+        let rr = ResourceRecord::new(
+            DomainName::from("example.com"),
+            Type::MX,
+            Class::IN,
+            3600,
+            mx_data,
+        );
+
+        let encoded_rr = encode(rr);
+
+        let expected = [
+            7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o', b'm',
+            0, // name: "example.com"
+            0, 15, // type: MX (15)
+            0, 1, // class: IN (1)
+            0, 0, 14, 16, // ttl: 3600 seconds
+            0, 20, // resource data length: 19 bytes (2 for preference + 17 for domain)
+            0, 10, // preference: 10
+            4, b'm', b'a', b'i', b'l', 7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o',
+            b'm', 0, // exchange: "mail.example.com"
+        ];
+
+        println!("expected {:?}", encoded_rr);
 
         assert_eq!(expected, encoded_rr.as_slice());
     }

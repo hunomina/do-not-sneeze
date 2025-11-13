@@ -15,7 +15,7 @@ For educational purposes, this project aims to use as little external dependenci
 - **UDP and TCP Transport**: Full support for both UDP (port 53) and TCP (port 53) protocols
 - **Smart Caching**: Two-tier storage with in-memory cache and upstream DNS fallback
 - **Upstream DNS Integration**: Automatically queries upstream DNS (e.g., 8.8.8.8) for unknown domains
-- **Resource Record Support**: A, AAAA, TXT, CNAME, and NS records fully implemented
+- **Resource Record Support**: A, AAAA, TXT, CNAME, NS, and MX records fully implemented
 - **EDNS(0) Support**: Extension Mechanisms for DNS (RFC 6891) with OPT pseudo-record handling
 - **Response Truncation**: Automatic truncation of responses exceeding UDP size limits (512 bytes standard, 4096 bytes with EDNS)
 - **RFC 1035 Compliant**: Proper handling of DNS headers, questions, and resource records
@@ -53,8 +53,8 @@ src/
 | **TXT** | 16 | ✅ Fully implemented (with RFC 1035 character-string format) |
 | **CNAME** | 5 | ✅ Fully implemented (canonical name alias) |
 | **NS** | 2 | ✅ Fully implemented (authoritative name server) |
+| **MX** | 15 | ✅ Fully implemented (mail exchange with preference) |
 | **OPT** | 41 | ✅ Fully implemented (EDNS(0) pseudo-record, RFC 6891) |
-| MX | 15 | ⚠️ Defined, encoding/decoding not implemented |
 | PTR | 12 | ⚠️ Defined, encoding/decoding not implemented |
 | SOA | 6 | ⚠️ Defined, encoding/decoding not implemented |
 
@@ -98,6 +98,9 @@ dig @127.0.0.1 www.example.com CNAME
 
 # Query NS record
 dig @127.0.0.1 example.com NS
+
+# Query MX record
+dig @127.0.0.1 example.com MX
 
 # Force TCP transport
 dig @127.0.0.1 google.com A +tcp
