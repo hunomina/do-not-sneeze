@@ -47,7 +47,7 @@ fn decode_data_from_type_and_buffer(type_: Type, buffer: &[u8]) -> Vec<u8> {
         Type::AAAA => decode_type_aaaa_data(buffer),
         Type::TXT => decode_type_txt_data(buffer),
         Type::MX => decode_type_mx_data(buffer),
-        Type::CNAME | Type::NS => decode_record_type_as_domain_name(buffer),
+        Type::CNAME | Type::NS | Type::PTR => decode_record_type_as_domain_name(buffer),
         _ => "Unknown RR type: {:?}".into(),
     }
 }
@@ -348,5 +348,58 @@ mod tests {
         ];
 
         decode_type_mx_data(&buffer);
+    }
+
+    #[test]
+    fn decode_ptr_resource_record() {
+        // PTR record for reverse DNS: 1.0.168.192.in-addr.arpa pointing to example.com
+        let buffer = [
+            1, b'1', 1, b'0', 3, b'1', b'6', b'8', 3, b'1', b'9', b'2', 7, b'i', b'n', b'-', b'a',
+            b'd', b'd', b'r', 4, b'a', b'r', b'p', b'a',
+            0, // name: "1.0.168.192.in-addr.arpa"
+            0, 12, // type: PTR (12)
+            0, 1, // class: IN (1)
+            0, 1, 81, 128, // ttl: 86400 seconds (1 day)
+            0, 13, // resource data length: 13 bytes
+            7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o', b'm',
+            0, // ptr target: "example.com"
+        ];
+
+        let (rr, buffer) = decode(&buffer, &buffer).unwrap();
+
+        let expected = ResourceRecord::new(
+            DomainName::from("1.0.168.192.in-addr.arpa"),
+            Type::PTR,
+            Class::IN,
+            86400,
+            vec![
+                7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o', b'm', 0,
+            ],
+        );
+
+        assert_eq!(expected, rr);
+        assert!(buffer.is_empty(), "Buffer should be empty after decoding");
+    }
+
+    #[test]
+    fn decode_record_type_as_domain_name_validates_buffer() {
+        let buffer = [
+            7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o', b'm', 0,
+        ];
+
+        let result = decode_record_type_as_domain_name(&buffer);
+
+        assert_eq!(result, buffer.to_vec());
+    }
+
+    #[test]
+    #[should_panic(expected = "Buffer must be empty after decoding MX record")]
+    fn decode_record_type_as_domain_name_extra_bytes() {
+        let buffer = [
+            7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o', b'm', 0, 1, 2,
+            3, // extra bytes
+        ];
+
+        decode_record_type_as_domain_name(&buffer);
     }
 }

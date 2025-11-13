@@ -36,7 +36,7 @@ fn encode_resource_data_from_type_and_string(type_: Type, value: Vec<u8>) -> Vec
         Type::A => encode_type_a_string(value).to_vec(),
         Type::AAAA => encode_type_aaaa_string(value).to_vec(),
         Type::TXT => encode_type_txt_string(value),
-        Type::CNAME | Type::NS | Type::MX => value,
+        Type::CNAME | Type::NS | Type::MX | Type::PTR => value,
         t => unimplemented!("Unimplemented resource record data type encoding {:?}", t),
     }
 }
@@ -338,6 +338,37 @@ mod tests {
         ];
 
         println!("expected {:?}", encoded_rr);
+
+        assert_eq!(expected, encoded_rr.as_slice());
+    }
+
+    #[test]
+    fn encode_ptr_resource_record() {
+        // PTR record for reverse DNS: 1.0.168.192.in-addr.arpa pointing to example.com
+        let ptr_target = DomainName::from("example.com");
+        let ptr_data = encode_domain_name(ptr_target);
+
+        let rr = ResourceRecord::new(
+            DomainName::from("1.0.168.192.in-addr.arpa"),
+            Type::PTR,
+            Class::IN,
+            86400,
+            ptr_data,
+        );
+
+        let encoded_rr = encode(rr);
+
+        let expected = [
+            1, b'1', 1, b'0', 3, b'1', b'6', b'8', 3, b'1', b'9', b'2', 7, b'i', b'n', b'-', b'a',
+            b'd', b'd', b'r', 4, b'a', b'r', b'p', b'a',
+            0, // name: "1.0.168.192.in-addr.arpa"
+            0, 12, // type: PTR (12)
+            0, 1, // class: IN (1)
+            0, 1, 81, 128, // ttl: 86400 seconds (1 day)
+            0, 13, // resource data length: 13 bytes
+            7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o', b'm',
+            0, // ptr target: "example.com"
+        ];
 
         assert_eq!(expected, encoded_rr.as_slice());
     }
