@@ -47,7 +47,7 @@ fn decode_data_from_type_and_buffer(type_: Type, buffer: &[u8]) -> Vec<u8> {
         Type::AAAA => decode_type_aaaa_data(buffer),
         Type::TXT => decode_type_txt_data(buffer),
         Type::MX => decode_type_mx_data(buffer),
-        Type::CNAME | Type::NS => buffer.to_vec(),
+        Type::CNAME | Type::NS => decode_record_type_as_domain_name(buffer),
         _ => "Unknown RR type: {:?}".into(),
     }
 }
@@ -97,6 +97,19 @@ fn decode_type_mx_data(buffer: &[u8]) -> Vec<u8> {
     );
 
     // Return the original buffer as-is
+    buffer.to_vec()
+}
+
+fn decode_record_type_as_domain_name(buffer: &[u8]) -> Vec<u8> {
+    let (_, remaining) = decode_domain_name(buffer, buffer);
+
+    // Assert that the entire buffer has been consumed
+    assert!(
+        remaining.is_empty(),
+        "Buffer must be empty after decoding MX record"
+    );
+
+    // Domain names are stored as-is in the resource data
     buffer.to_vec()
 }
 
