@@ -15,7 +15,7 @@ pub fn decode<'a>(bytes: &'a [u8], source: &'a [u8]) -> (DomainName, &'a [u8]) {
             break;
         }
 
-        if x & ALIAS_FLAG == ALIAS_FLAG {
+        if is_alias_flag(*x) {
             // take next byte, concat with current and counter detection flag on result to get 14th last bits
             let alias_position_in_source =
                 concat_two_u8s(*x, *buffer.next().unwrap()) & !((ALIAS_FLAG as u16) << 8);
@@ -34,6 +34,10 @@ pub fn decode<'a>(bytes: &'a [u8], source: &'a [u8]) -> (DomainName, &'a [u8]) {
 fn from_source(source: &[u8], position: usize) -> DomainName {
     let trimmed_source = &<&[u8]>::clone(&source).to_vec()[position..];
     decode(trimmed_source, source).0
+}
+
+pub fn is_alias_flag(byte: u8) -> bool {
+    byte & ALIAS_FLAG == ALIAS_FLAG
 }
 
 #[cfg(test)]

@@ -4,11 +4,14 @@ mod opt_record;
 mod question;
 mod resource_record;
 
-use crate::common::{
-    Message,
-    header::{HEADER_BIT_SIZE, extract_header_bits_from_buffer},
-    question::Question,
-    resource_record::{ResourceRecord, Type},
+use crate::{
+    common::{
+        Message,
+        header::{HEADER_BIT_SIZE, extract_header_bits_from_buffer},
+        question::Question,
+        resource_record::{ResourceRecord, Type},
+    },
+    decoder::domain_name::is_alias_flag,
 };
 
 pub trait Decoder {
@@ -114,19 +117,19 @@ fn peek_rr_type(buffer: &[u8]) -> Result<Type, DecodingError> {
             ));
         }
 
-        let len = buffer[pos];
+        let byte = buffer[pos];
 
-        if len == 0 {
+        if byte == 0 {
             // End of domain name
             pos += 1;
             break;
-        } else if (len & 0xC0) == 0xC0 {
+        } else if is_alias_flag(byte) {
             // Compression pointer (2 bytes)
             pos += 2;
             break;
         } else {
-            // Regular label
-            pos += 1 + len as usize;
+            // Regular label: byte contains the label length
+            pos += 1 + byte as usize;
         }
     }
 
