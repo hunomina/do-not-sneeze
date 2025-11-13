@@ -46,7 +46,7 @@ fn decode_data_from_type_and_buffer(type_: Type, buffer: &[u8]) -> Vec<u8> {
         Type::A => decode_type_a_data(buffer),
         Type::AAAA => decode_type_aaaa_data(buffer),
         Type::TXT => decode_type_txt_data(buffer),
-        Type::CNAME => decode_type_cname_data(buffer),
+        Type::CNAME | Type::NS => buffer.to_vec(),
         _ => "Unknown RR type: {:?}".into(),
     }
 }
@@ -69,12 +69,6 @@ fn decode_type_txt_data(buffer: &[u8]) -> Vec<u8> {
     String::from_utf8_lossy(&buffer[1..=expected_length])
         .as_bytes()
         .to_vec()
-}
-
-fn decode_type_cname_data(buffer: &[u8]) -> Vec<u8> {
-    // CNAME RDATA is a domain name in DNS wire format
-    // Return the buffer as-is (it's already encoded domain name bytes)
-    buffer.to_vec()
 }
 
 #[cfg(test)]
@@ -201,6 +195,37 @@ mod tests {
             3600,
             vec![
                 7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o', b'm', 0,
+            ],
+        );
+
+        assert_eq!(expected, rr);
+        assert!(buffer.is_empty(), "Buffer should be empty after decoding");
+    }
+
+    #[test]
+    fn decode_ns_resource_record() {
+        // NS record for example.com pointing to ns1.example.com
+        let buffer = [
+            7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o', b'm',
+            0, // name: "example.com"
+            0, 2, // type: NS (2)
+            0, 1, // class: IN (1)
+            0, 1, 81, 128, // ttl: 86400 seconds (1 day)
+            0, 17, // resource data length: 17 bytes
+            3, b'n', b's', b'1', 7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o', b'm',
+            0, // ns target: "ns1.example.com"
+        ];
+
+        let (rr, buffer) = decode(&buffer, &buffer).unwrap();
+
+        let expected = ResourceRecord::new(
+            DomainName::from("example.com"),
+            Type::NS,
+            Class::IN,
+            86400,
+            vec![
+                3, b'n', b's', b'1', 7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o',
+                b'm', 0,
             ],
         );
 

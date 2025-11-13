@@ -36,7 +36,7 @@ fn encode_resource_data_from_type_and_string(type_: Type, value: Vec<u8>) -> Vec
         Type::A => encode_type_a_string(value).to_vec(),
         Type::AAAA => encode_type_aaaa_string(value).to_vec(),
         Type::TXT => encode_type_txt_string(value),
-        Type::CNAME => value,
+        Type::CNAME | Type::NS => value,
         t => unimplemented!("Unimplemented resource record data type encoding {:?}", t),
     }
 }
@@ -269,6 +269,36 @@ mod tests {
             0, 13, // resource data length: 13 bytes (including trailing 0)
             7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o', b'm',
             0, // cname target: "example.com"
+        ];
+
+        assert_eq!(expected, encoded_rr.as_slice());
+    }
+
+    #[test]
+    fn encode_ns_resource_record() {
+        // NS record for example.com pointing to ns1.example.com
+        let ns_target = DomainName::from("ns1.example.com");
+        let ns_data = encode_domain_name(ns_target);
+
+        let rr = ResourceRecord::new(
+            DomainName::from("example.com"),
+            Type::NS,
+            Class::IN,
+            86400,
+            ns_data,
+        );
+
+        let encoded_rr = encode(rr);
+
+        let expected = [
+            7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o', b'm',
+            0, // name: "example.com"
+            0, 2, // type: NS (2)
+            0, 1, // class: IN (1)
+            0, 1, 81, 128, // ttl: 86400 seconds (1 day)
+            0, 17, // resource data length: 17 bytes
+            3, b'n', b's', b'1', 7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o', b'm',
+            0, // ns target: "ns1.example.com"
         ];
 
         assert_eq!(expected, encoded_rr.as_slice());
