@@ -5,13 +5,14 @@ use crate::{
         question::Question,
         resource_record::ResourceRecord,
     },
-    decoder::{Decoder, DecodingError},
+    decoder::Decoder,
     encoder::Encoder,
     storage::{RepositoryError, ResourceRecordRepository},
     transport::EDNS_STANDARD_UDP_PAYLOAD_SIZE,
 };
 
 use std::{
+    io::Error,
     net::{ToSocketAddrs, UdpSocket},
     time,
 };
@@ -43,14 +44,7 @@ impl<T: ToSocketAddrs + Clone, D: Decoder, E: Encoder> ResourceRecordRepository
         //    response_from_fallback_server
         //);
 
-        match response_from_fallback_server {
-            Ok(message) => Ok(message.answers),
-            Err(e) => {
-                println!("Error fetching from fallback server: {:?}", e);
-                // If we cannot get a response from the fallback server, we return an empty vector
-                Ok(vec![]) // todo transform DecodingError into RepositoryError
-            }
-        }
+        response_from_fallback_server.map(|m| m.answers)
     }
 }
 
@@ -59,23 +53,22 @@ fn fetch_from_other_server<T: ToSocketAddrs + Clone, D: Decoder, E: Encoder>(
     decoder: &D,
     fallback_server_address: T,
     message: Message,
-) -> Result<Message, DecodingError> {
+) -> Result<Message, RepositoryError> {
     let mut buf = [0; EDNS_STANDARD_UDP_PAYLOAD_SIZE / 8]; // could be improved by only allocating based on if EDNS is enabled
     let encode_message = encoder.encode(message);
 
-    let fallback_server = UdpSocket::bind("0.0.0.0:0").unwrap();
-    fallback_server
-        .connect(fallback_server_address)
-        .expect("Failed to connect to fallback server");
-
-    fallback_server.send(encode_message.as_slice()).unwrap();
-
-    match fallback_server.recv_from(&mut buf) {
-        Ok((amt, _)) => decoder.decode(&buf[..amt]),
-        Err(e) => {
-            panic!("couldn't receive a datagram: {}", e);
-        }
-    }
+    UdpSocket::bind("0.0.0.0:0")
+        .and_then(|socket| {
+            socket.connect(fallback_server_address)?;
+            socket.send(encode_message.as_slice())?;
+            socket.recv_from(&mut buf)
+        })
+        .map_err(|e: Error| RepositoryError::ContactingFallbackServerError(e.to_string()))
+        .and_then(|(amt, _)| {
+            decoder
+                .decode(&buf[..amt])
+                .map_err(RepositoryError::DecodingFallbackServerResponseError)
+        })
 }
 
 fn generate_message_with_question(question: Question) -> Message {

@@ -1,16 +1,22 @@
 use std::collections::HashMap;
 
-use crate::common::{
-    domain_name::DomainName,
-    question::{Class as QuestionClass, Question, Type as QuestionType},
-    resource_record::{ResourceRecord, Type},
+use crate::{
+    common::{
+        domain_name::DomainName,
+        question::{Class as QuestionClass, Question, Type as QuestionType},
+        resource_record::{ResourceRecord, Type},
+    },
+    decoder::DecodingError,
 };
 
 pub mod combined;
 pub mod fallback;
 
 #[derive(Debug)]
-pub enum RepositoryError {}
+pub enum RepositoryError {
+    ContactingFallbackServerError(String),
+    DecodingFallbackServerResponseError(DecodingError),
+}
 
 pub trait ResourceRecordRepository {
     fn get_resource_records(

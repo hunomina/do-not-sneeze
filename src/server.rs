@@ -160,9 +160,15 @@ where
             .flat_map(|question| {
                 storage
                     .lock()
-                    .unwrap()
+                    .unwrap_or_else(|poisoned| {
+                        println!("💣🔥 Mutex poisoned, recovering: {:?}", poisoned);
+                        poisoned.into_inner()
+                    })
                     .get_resource_records(question.clone())
-                    .unwrap_or_default()
+                    .unwrap_or_else(|e| {
+                        println!("💣🔥 Error retrieving records from storage: {:?}", e);
+                        Default::default()
+                    })
             })
             .collect::<Vec<_>>();
 
