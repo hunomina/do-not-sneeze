@@ -18,7 +18,7 @@ pub trait Decoder {
     fn decode(&self, buffer: &[u8]) -> Result<Message, DecodingError>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum DecodingError {
     InvalidHeaderSize,
     InvalidHeaderQueryType(String),
@@ -29,6 +29,7 @@ pub enum DecodingError {
     InvalidQuestionClass(String),
     InvalidOptRecord(String),
     MultipleOptRecords,
+    ResourceDataLengthMismatch { expected: usize, actual: usize },
 }
 
 pub struct MessageDecoder {}
@@ -45,6 +46,7 @@ impl Decoder for MessageDecoder {
 
         let questions = (0..header.questions_count)
             .map(|_| {
+                // todo: add source to question::decode, we might have multiple questions and thus using alias
                 let (question, rest) = question::decode(buffer)?;
                 buffer = rest;
                 Ok(question)
@@ -316,6 +318,93 @@ mod tests {
         );
 
         let message = decoder.decode(response_buffer).unwrap();
+
+        assert_eq!(expected_message, message);
+    }
+
+    #[test]
+    fn test_decode_message_with_cname_answers_using_aliases() {
+        let buffer = [
+            80, 162, 129, 128, 0, 1, 0, 4, 0, 0, 0, 0, //header
+            3, 119, 119, 119, 5, 97, 112, 112, 108, 101, 3, 99, 111, 109, 0, 0, 1, 0,
+            1, // question
+            192, 12, 0, 5, 0, 1, 0, 0, 0, 198, 0, 26, 13, 119, 119, 119, 45, 97, 112, 112, 108,
+            101, 45, 99, 111, 109, 1, 118, 7, 97, 97, 112, 108, 105, 109, 103, 192,
+            22, // answer 1
+            192, 43, 0, 5, 0, 1, 0, 0, 1, 44, 0, 27, 3, 119, 119, 119, 5, 97, 112, 112, 108, 101,
+            3, 99, 111, 109, 7, 101, 100, 103, 101, 107, 101, 121, 3, 110, 101, 116,
+            0, // answer 2
+            192, 81, 0, 5, 0, 1, 0, 0, 0, 184, 0, 25, 5, 101, 54, 56, 53, 56, 5, 100, 115, 99, 101,
+            57, 10, 97, 107, 97, 109, 97, 105, 101, 100, 103, 101, 192, 103, // answer 3
+            192, 120, 0, 1, 0, 1, 0, 0, 0, 20, 0, 4, 23, 40, 113, 47, // answer 4
+        ];
+
+        let expected_message = Message {
+            header: Header {
+                id: 20642,
+                qr: MessageType::Response,
+                opcode: QueryType::Standard,
+                authoritative_answer: false,
+                truncated: false,
+                recursion_desired: true,
+                recursion_available: true,
+                reserved: false,
+                response_code: ResponseCode::NoError,
+                questions_count: 1,
+                answers_count: 4,
+                authority_count: 0,
+                additional_count: 0,
+            },
+            questions: vec![Question {
+                name: DomainName::from("www.apple.com."),
+                type_: Type::RRType(RRType::A),
+                class: Class::IN,
+            }],
+            answers: vec![
+                ResourceRecord {
+                    name: DomainName::from("www.apple.com."),
+                    type_: RRType::CNAME,
+                    class: Class::IN,
+                    ttl: 198,
+                    resource_data: vec![
+                        13, 119, 119, 119, 45, 97, 112, 112, 108, 101, 45, 99, 111, 109, 1, 118, 7,
+                        97, 97, 112, 108, 105, 109, 103, 192, 22,
+                    ],
+                },
+                ResourceRecord {
+                    name: DomainName::from("www-apple-com.v.aaplimg.com."),
+                    type_: RRType::CNAME,
+                    class: Class::IN,
+                    ttl: 300,
+                    resource_data: vec![
+                        3, 119, 119, 119, 5, 97, 112, 112, 108, 101, 3, 99, 111, 109, 7, 101, 100,
+                        103, 101, 107, 101, 121, 3, 110, 101, 116, 0,
+                    ],
+                },
+                ResourceRecord {
+                    name: DomainName::from("www.apple.com.edgekey.net."),
+                    type_: RRType::CNAME,
+                    class: Class::IN,
+                    ttl: 184,
+                    resource_data: vec![
+                        5, 101, 54, 56, 53, 56, 5, 100, 115, 99, 101, 57, 10, 97, 107, 97, 109, 97,
+                        105, 101, 100, 103, 101, 192, 103,
+                    ],
+                },
+                ResourceRecord {
+                    name: DomainName::from("e6858.dsce9.akamaiedge.net."),
+                    type_: RRType::A,
+                    class: Class::IN,
+                    ttl: 20,
+                    resource_data: vec![23, 40, 113, 47],
+                },
+            ],
+            authorities: vec![],
+            additionnals: vec![],
+            opt_record: None,
+        };
+
+        let message = MessageDecoder {}.decode(&buffer).unwrap();
 
         assert_eq!(expected_message, message);
     }

@@ -26,14 +26,15 @@ pub fn decode<'a>(
 
     let (resource_data_length, buffer) = extract_next_sixteen_bits_from_buffer(buffer);
 
+    if buffer.len() < resource_data_length as usize {
+        return Err(DecodingError::ResourceDataLengthMismatch {
+            expected: resource_data_length as usize,
+            actual: buffer.len(),
+        });
+    }
     let (data, buffer) = buffer.split_at(resource_data_length as usize);
 
-    let resource_data = decode_data_from_type_and_buffer(type_, data);
-
-    assert!(
-        resource_data.len() == resource_data_length as usize,
-        "Decoded resource data length does not match the expected length"
-    );
+    let resource_data = decode_data_from_type_and_buffer(type_, data, source);
 
     Ok((
         ResourceRecord::new(name, type_, class, ttl, resource_data),
@@ -41,13 +42,13 @@ pub fn decode<'a>(
     ))
 }
 
-fn decode_data_from_type_and_buffer(type_: Type, buffer: &[u8]) -> Vec<u8> {
+fn decode_data_from_type_and_buffer(type_: Type, buffer: &[u8], source: &[u8]) -> Vec<u8> {
     match type_ {
         Type::A => decode_type_a_data(buffer),
         Type::AAAA => decode_type_aaaa_data(buffer),
         Type::TXT => decode_type_txt_data(buffer),
         Type::MX => decode_type_mx_data(buffer),
-        Type::CNAME | Type::NS | Type::PTR => decode_record_type_as_domain_name(buffer),
+        Type::CNAME | Type::NS | Type::PTR => decode_record_type_as_domain_name(buffer, source),
         _ => "Unknown RR type: {:?}".into(),
     }
 }
@@ -100,8 +101,8 @@ fn decode_type_mx_data(buffer: &[u8]) -> Vec<u8> {
     buffer.to_vec()
 }
 
-fn decode_record_type_as_domain_name(buffer: &[u8]) -> Vec<u8> {
-    let (_, remaining) = decode_domain_name(buffer, buffer);
+fn decode_record_type_as_domain_name(buffer: &[u8], source: &[u8]) -> Vec<u8> {
+    let (_, remaining) = decode_domain_name(buffer, source);
 
     // Assert that the entire buffer has been consumed
     assert!(
@@ -387,7 +388,7 @@ mod tests {
             7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o', b'm', 0,
         ];
 
-        let result = decode_record_type_as_domain_name(&buffer);
+        let result = decode_record_type_as_domain_name(&buffer, &buffer);
 
         assert_eq!(result, buffer.to_vec());
     }
@@ -400,6 +401,31 @@ mod tests {
             3, // extra bytes
         ];
 
-        decode_record_type_as_domain_name(&buffer);
+        decode_record_type_as_domain_name(&buffer, &buffer);
+    }
+
+    #[test]
+    fn decode_resource_record_data_length_mismatch() {
+        // TXT record with incorrect resource data length
+        // The length field says 5 bytes, but the actual TXT data is only 1 byte (length) + 3 bytes (text) = 4 bytes
+        let buffer = [
+            6, b'g', b'o', b'o', b'g', b'l', b'e', 3, b'c', b'o', b'm',
+            0, // name: "google.com"
+            0, 16, // type: TXT (16)
+            0, 1, // class: IN (1)
+            0, 0, 0, 60, // ttl: 60 seconds
+            0, 5, // resource data length: 5 bytes (WRONG - actual data is 4 bytes)
+            3, b'f', b'o', b'o', // TXT data: length byte (3) + "foo" = 4 bytes total
+        ];
+
+        let result = decode(&buffer, &buffer).unwrap_err();
+
+        assert_eq!(
+            result,
+            DecodingError::ResourceDataLengthMismatch {
+                expected: 5,
+                actual: 4
+            }
+        );
     }
 }
