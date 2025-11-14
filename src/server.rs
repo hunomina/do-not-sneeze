@@ -76,7 +76,7 @@ where
             let socket = UdpSocket::bind(format!("0.0.0.0:{}", port)).unwrap();
             println!("🚀💨 UDP DNS server running on port {}", port);
 
-            let mut buf = [0; UDP_MAX_MESSAGE_SIZE / 8];
+            let mut buf = [0; UDP_MAX_MESSAGE_SIZE];
             loop {
                 let socket_clone = socket.try_clone().unwrap();
                 match socket.recv_from(&mut buf) {
