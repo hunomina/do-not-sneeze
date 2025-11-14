@@ -46,8 +46,7 @@ impl Decoder for MessageDecoder {
 
         let questions = (0..header.questions_count)
             .map(|_| {
-                // todo: add source to question::decode, we might have multiple questions and thus using alias
-                let (question, rest) = question::decode(buffer)?;
+                let (question, rest) = question::decode(buffer, source)?;
                 buffer = rest;
                 Ok(question)
             })
@@ -403,6 +402,59 @@ mod tests {
             additionnals: vec![],
             opt_record: None,
         };
+
+        let message = MessageDecoder {}.decode(&buffer).unwrap();
+
+        assert_eq!(expected_message, message);
+    }
+
+    #[test]
+    fn test_decode_message_with_two_questions_using_compression() {
+        // Message with two questions where the second references the first's domain name
+        let buffer = [
+            226, 44, 1, 0, 0, 2, 0, 0, 0, 0, 0, 0, // Question 1: google.com A IN
+            6, b'g', b'o', b'o', b'g', b'l', b'e', 3, b'c', b'o', b'm', 0, // google.com
+            0, 1, // type: A
+            0, 1, // class: IN
+            // Question 2: www.google.com AAAA IN (using alias to question 1)
+            3, b'w', b'w', b'w', 192, 12, // alias to offset 12 (google.com)
+            0, 28, // type: AAAA
+            0, 1, // class: IN
+        ];
+
+        let expected_message = Message::new(
+            Header {
+                id: 57900,
+                qr: MessageType::Query,
+                opcode: QueryType::Standard,
+                authoritative_answer: false,
+                truncated: false,
+                recursion_desired: true,
+                recursion_available: false,
+                reserved: false,
+                response_code: ResponseCode::NoError,
+                questions_count: 2,
+                answers_count: 0,
+                authority_count: 0,
+                additional_count: 0,
+            },
+            vec![
+                Question {
+                    name: DomainName::from("google.com."),
+                    type_: Type::RRType(RRType::A),
+                    class: Class::IN,
+                },
+                Question {
+                    name: DomainName::from("www.google.com."),
+                    type_: Type::RRType(RRType::AAAA),
+                    class: Class::IN,
+                },
+            ],
+            vec![],
+            vec![],
+            vec![],
+            None,
+        );
 
         let message = MessageDecoder {}.decode(&buffer).unwrap();
 

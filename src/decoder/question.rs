@@ -6,8 +6,11 @@ use crate::{
 
 use super::domain_name::decode as decode_domain_name;
 
-pub fn decode(buffer: &[u8]) -> Result<(Question, &[u8]), DecodingError> {
-    let (name, buffer) = decode_domain_name(buffer, buffer);
+pub fn decode<'a>(
+    buffer: &'a [u8],
+    source: &'a [u8],
+) -> Result<(Question, &'a [u8]), DecodingError> {
+    let (name, buffer) = decode_domain_name(buffer, source);
     let (type_bytes, buffer) = extract_next_sixteen_bits_from_buffer(buffer);
     let (class_bytes, buffer) = extract_next_sixteen_bits_from_buffer(buffer);
 
@@ -35,7 +38,7 @@ mod tests {
             0, 1, // question type
             0, 1, // question class
         ];
-        let (question, rest) = decode(buffer).unwrap();
+        let (question, rest) = decode(buffer, buffer).unwrap();
         let expected_question = Question {
             name: DomainName {
                 labels: vec!["wpad".into(), "numericable".into(), "fr".into(), "".into()],
