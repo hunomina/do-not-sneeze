@@ -49,7 +49,7 @@ fn decode_data_from_type_and_buffer(type_: Type, buffer: &[u8], source: &[u8]) -
         Type::TXT => decode_type_txt_data(buffer),
         Type::MX => decode_type_mx_data(buffer),
         Type::CNAME | Type::NS | Type::PTR => decode_record_type_as_domain_name(buffer, source),
-        _ => "Unknown RR type: {:?}".into(),
+        _ => buffer.to_vec(), // Pass through opaque data
     }
 }
 

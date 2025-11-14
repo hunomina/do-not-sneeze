@@ -37,7 +37,10 @@ fn encode_resource_data_from_type_and_string(type_: Type, value: Vec<u8>) -> Vec
         Type::AAAA => encode_type_aaaa_string(value).to_vec(),
         Type::TXT => encode_type_txt_string(value),
         Type::CNAME | Type::NS | Type::MX | Type::PTR => value,
-        t => unimplemented!("Unimplemented resource record data type encoding {:?}", t),
+        t => {
+            println!("⏭️ Pass through record data type encoding {:?}", t);
+            value
+        }
     }
 }
 
