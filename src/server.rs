@@ -176,7 +176,7 @@ where
         response.set_answers(answers);
 
         let mut encoded_response = encoder.encode(response.clone());
-        let encoded_response_len = encoded_response.len() * 8;
+        let encoded_response_len = encoded_response.len();
 
         if encoded_response_len > max_message_size {
             println!(
@@ -185,6 +185,8 @@ where
             );
             response = response.truncate();
             encoded_response = encoder.encode(response);
+        } else {
+            println!("✅ Encoded message size {}", encoded_response_len);
         }
 
         encoded_response
@@ -346,11 +348,11 @@ mod tests {
         let decoder = Arc::new(MockDecoder);
 
         let encoder = Arc::new(MockEncoder {
-            bytes_per_record: 50,
+            bytes_per_record: 300,
         });
 
-        // 2 records size = MOCKED_HEADER_SIZE + MOCKED_QUESTIONS_SIZE + 2 * MOCKED_ANSWER_SIZE = 140 bytes
-        // 140 * 8 = 1120 bits > 512 (DNS default UDP limit)
+        // 2 records size = MOCKED_HEADER_SIZE + MOCKED_QUESTIONS_SIZE + 2 * 300 = 640 bytes
+        // 640 bytes > 512 bytes (DNS default UDP limit) - should truncate
         let mocked_answers = vec![
             build_type_a_record("example.com.", "192.0.2.1"),
             build_type_a_record("example.com.", "192.0.2.2"),
@@ -379,7 +381,7 @@ mod tests {
         });
 
         // 3 records size = MOCKED_HEADER_SIZE + MOCKED_QUESTIONS_SIZE + 3 * MOCKED_ANSWER_SIZE = 190 bytes
-        // 190 * 8 = 1520 bits < 4096 (EDNS limit)
+        // 190 bytes < 4096 bytes (EDNS limit) - should NOT truncate
         let mocked_answers = vec![
             build_type_a_record("example.com.", "192.0.2.1"),
             build_type_a_record("example.com.", "192.0.2.2"),
@@ -408,13 +410,13 @@ mod tests {
     fn handle_with_edns_still_truncated() {
         let decoder = Arc::new(MockDecoderWithEDNS);
 
-        const MOCKED_ANSWER_SIZE: usize = 1000;
+        const MOCKED_ANSWER_SIZE: usize = 1500;
         let encoder = Arc::new(MockEncoder {
             bytes_per_record: MOCKED_ANSWER_SIZE,
         });
 
-        // 3 records size = MOCKED_HEADER_SIZE + MOCKED_QUESTIONS_SIZE + 3 * MOCKED_ANSWER_SIZE = 3040 bytes
-        // 3040 * 8 = 24320 bits > 4096 (EDNS limit)
+        // 3 records size = MOCKED_HEADER_SIZE + MOCKED_QUESTIONS_SIZE + 3 * 1500 = 4540 bytes
+        // 4540 bytes > 4096 bytes (EDNS limit) - should truncate
         let mocked_answers = vec![
             build_type_a_record("example.com.", "192.0.2.1"),
             build_type_a_record("example.com.", "192.0.2.2"),
