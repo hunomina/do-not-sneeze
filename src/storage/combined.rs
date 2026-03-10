@@ -31,7 +31,7 @@ impl<T: ToSocketAddrs + Clone, D: Decoder, E: Encoder> ResourceRecordRepository
     for CombinedRepository<T, D, E>
 {
     fn get_resource_records(
-        &mut self,
+        &self,
         question: crate::common::question::Question,
     ) -> Result<Vec<ResourceRecord>, RepositoryError> {
         let in_memory_records = self

@@ -2,7 +2,7 @@ use std::{
     env,
     io::{Read, Write},
     net::{TcpListener, UdpSocket},
-    sync::{Arc, Mutex},
+    sync::{Arc, RwLock},
     thread,
 };
 
@@ -17,7 +17,7 @@ pub struct Server<D, E, R>
 where
     D: Decoder + Send + Sync + 'static,
     E: Encoder + Send + Sync + 'static,
-    R: ResourceRecordRepository + Send + 'static,
+    R: ResourceRecordRepository + Send + Sync + 'static,
 {
     decoder: D,
     encoder: E,
@@ -28,7 +28,7 @@ impl<D, E, R> Server<D, E, R>
 where
     D: Decoder + Send + Sync + 'static,
     E: Encoder + Send + Sync + 'static,
-    R: ResourceRecordRepository + Send + 'static,
+    R: ResourceRecordRepository + Send + Sync + 'static,
 {
     pub fn new(decoder: D, encoder: E, storage: R) -> Self {
         Server {
@@ -46,104 +46,92 @@ where
 
         let decoder = Arc::new(self.decoder);
         let encoder = Arc::new(self.encoder);
-        let storage = Arc::new(Mutex::new(self.storage));
+        let storage = Arc::new(RwLock::new(self.storage));
 
-        let udp_handle = Self::run_udp(
-            Arc::clone(&decoder),
-            Arc::clone(&encoder),
-            Arc::clone(&storage),
-            port,
-        );
-
-        let tcp_handle = Self::run_tcp(
-            Arc::clone(&decoder),
-            Arc::clone(&encoder),
-            Arc::clone(&storage),
-            port,
-        );
-
-        udp_handle.join().unwrap();
-        tcp_handle.join().unwrap();
+        thread::scope(|s| {
+            s.spawn(|| {
+                Self::run_udp(
+                    Arc::clone(&decoder),
+                    Arc::clone(&encoder),
+                    Arc::clone(&storage),
+                    port,
+                );
+            });
+            s.spawn(|| {
+                Self::run_tcp(
+                    Arc::clone(&decoder),
+                    Arc::clone(&encoder),
+                    Arc::clone(&storage),
+                    port,
+                );
+            });
+        });
     }
 
-    fn run_udp(
-        decoder: Arc<D>,
-        encoder: Arc<E>,
-        storage: Arc<Mutex<R>>,
-        port: u16,
-    ) -> thread::JoinHandle<()> {
-        thread::spawn(move || {
-            let socket = UdpSocket::bind(format!("0.0.0.0:{}", port)).unwrap();
-            println!("🚀💨 UDP DNS server running on port {}", port);
+    fn run_udp(decoder: Arc<D>, encoder: Arc<E>, storage: Arc<RwLock<R>>, port: u16) {
+        let socket = UdpSocket::bind(format!("0.0.0.0:{}", port)).unwrap();
+        println!("🚀💨 UDP DNS server running on port {}", port);
 
-            let mut buf = [0; UDP_MAX_MESSAGE_SIZE];
-            loop {
-                let socket_clone = socket.try_clone().unwrap();
-                match socket.recv_from(&mut buf) {
-                    Ok((amt, src)) => {
-                        let decoder = Arc::clone(&decoder);
-                        let encoder = Arc::clone(&encoder);
-                        let storage = Arc::clone(&storage);
+        let mut buf = [0; UDP_MAX_MESSAGE_SIZE];
+        loop {
+            let socket_clone = socket.try_clone().unwrap();
+            match socket.recv_from(&mut buf) {
+                Ok((amt, src)) => {
+                    let decoder = Arc::clone(&decoder);
+                    let encoder = Arc::clone(&encoder);
+                    let storage = Arc::clone(&storage);
 
-                        thread::spawn(move || {
-                            let buffer = &buf[..amt];
-                            let encoded_response = Self::handle(buffer, decoder, encoder, storage);
+                    thread::spawn(move || {
+                        let buffer = &buf[..amt];
+                        let encoded_response = Self::handle(buffer, &decoder, &encoder, &storage);
 
-                            socket_clone.send_to(&encoded_response, src).unwrap();
-                        });
-                    }
-                    Err(e) => {
-                        println!("couldn't receive a datagram: {}", e);
-                    }
+                        socket_clone.send_to(&encoded_response, src).unwrap();
+                    });
+                }
+                Err(e) => {
+                    println!("couldn't receive a datagram: {}", e);
                 }
             }
-        })
+        }
     }
 
-    fn run_tcp(
-        decoder: Arc<D>,
-        encoder: Arc<E>,
-        storage: Arc<Mutex<R>>,
-        port: u16,
-    ) -> thread::JoinHandle<()> {
-        thread::spawn(move || {
-            let listener = TcpListener::bind(format!("0.0.0.0:{}", port)).unwrap();
-            println!("🚀🔗 TCP DNS server running on port {}", port);
+    fn run_tcp(decoder: Arc<D>, encoder: Arc<E>, storage: Arc<RwLock<R>>, port: u16) {
+        let listener = TcpListener::bind(format!("0.0.0.0:{}", port)).unwrap();
+        println!("🚀🔗 TCP DNS server running on port {}", port);
 
-            for stream in listener.incoming() {
-                let decoder = Arc::clone(&decoder);
-                let encoder = Arc::clone(&encoder);
-                let storage = Arc::clone(&storage);
+        for stream in listener.incoming() {
+            let decoder = Arc::clone(&decoder);
+            let encoder = Arc::clone(&encoder);
+            let storage = Arc::clone(&storage);
 
-                thread::spawn(|| {
-                    match stream {
-                        Ok(mut stream) => {
-                            let message_size = {
-                                let mut size_buf = [0; 2];
-                                stream.read_exact(&mut size_buf).unwrap();
-                                u16::from_be_bytes(size_buf) as usize
-                            };
+            thread::spawn(move || {
+                match stream {
+                    Ok(mut stream) => {
+                        let message_size = {
+                            let mut size_buf = [0; 2];
+                            stream.read_exact(&mut size_buf).unwrap();
+                            u16::from_be_bytes(size_buf) as usize
+                        };
 
-                            let mut buffer = vec![0u8; message_size];
-                            stream.read_exact(&mut buffer).unwrap();
+                        let mut buffer = vec![0u8; message_size];
+                        stream.read_exact(&mut buffer).unwrap();
 
-                            let encoded_response =
-                                Self::handle(buffer.as_slice(), decoder, encoder, storage);
+                        let encoded_response =
+                            Self::handle(buffer.as_slice(), &decoder, &encoder, &storage);
 
-                            let response_length = (encoded_response.len() as u16).to_be_bytes();
-                            stream.write_all(&response_length).unwrap();
-                            stream.write_all(&encoded_response).unwrap();
-                        }
-                        Err(e) => {
-                            println!("Failed to accept TCP connection: {}", e);
-                        }
-                    };
-                });
-            }
-        })
+                        let response_length = (encoded_response.len() as u16).to_be_bytes();
+                        stream.write_all(&response_length).unwrap();
+                        stream.write_all(&encoded_response).unwrap();
+                    }
+                    Err(e) => {
+                        println!("Failed to accept TCP connection: {}", e);
+                    }
+                };
+            });
+        }
     }
 
-    fn handle(buffer: &[u8], decoder: Arc<D>, encoder: Arc<E>, storage: Arc<Mutex<R>>) -> Vec<u8> {
+    fn handle(buffer: &[u8], decoder: &D, encoder: &E, storage: &RwLock<R>) -> Vec<u8> {
         let message = decoder.decode(buffer).unwrap();
 
         println!(
@@ -159,7 +147,7 @@ where
             .iter()
             .flat_map(|question| {
                 storage
-                    .lock()
+                    .read()
                     .unwrap_or_else(|poisoned| {
                         println!("💣🔥 Mutex poisoned, recovering: {:?}", poisoned);
                         poisoned.into_inner()
@@ -305,7 +293,7 @@ mod tests {
 
     impl ResourceRecordRepository for MockStorage {
         fn get_resource_records(
-            &mut self,
+            &self,
             _question: Question,
         ) -> Result<Vec<ResourceRecord>, RepositoryError> {
             Ok(self.records_to_return.clone())
@@ -314,27 +302,27 @@ mod tests {
 
     #[test]
     fn handle_regular_request() {
-        let decoder = Arc::new(MockDecoder);
+        let decoder = MockDecoder;
 
         const MOCKED_ANSWER_SIZE: usize = 10;
-        let encoder = Arc::new(MockEncoder {
+        let encoder = MockEncoder {
             bytes_per_record: MOCKED_ANSWER_SIZE, // Small size per answer
-        });
+        };
 
         let mocked_answers = vec![
             build_type_a_record("example.com.", "192.0.2.1"),
             build_type_a_record("example.com.", "192.0.2.2"),
         ];
         let mocked_answers_len = mocked_answers.len();
-        let storage = Arc::new(Mutex::new(MockStorage {
+        let storage = RwLock::new(MockStorage {
             records_to_return: mocked_answers,
-        }));
+        });
 
         let response = Server::<MockDecoder, MockEncoder, MockStorage>::handle(
             &[0u8; UDP_MAX_MESSAGE_SIZE / 8],
-            decoder,
-            encoder,
-            storage,
+            &decoder,
+            &encoder,
+            &storage,
         );
 
         assert_eq!(
@@ -345,11 +333,11 @@ mod tests {
 
     #[test]
     fn handle_truncated_request() {
-        let decoder = Arc::new(MockDecoder);
+        let decoder = MockDecoder;
 
-        let encoder = Arc::new(MockEncoder {
+        let encoder = MockEncoder {
             bytes_per_record: 300,
-        });
+        };
 
         // 2 records size = MOCKED_HEADER_SIZE + MOCKED_QUESTIONS_SIZE + 2 * 300 = 640 bytes
         // 640 bytes > 512 bytes (DNS default UDP limit) - should truncate
@@ -357,15 +345,15 @@ mod tests {
             build_type_a_record("example.com.", "192.0.2.1"),
             build_type_a_record("example.com.", "192.0.2.2"),
         ];
-        let storage = Arc::new(Mutex::new(MockStorage {
+        let storage = RwLock::new(MockStorage {
             records_to_return: mocked_answers,
-        }));
+        });
 
         let response = Server::<MockDecoder, MockEncoder, MockStorage>::handle(
             &[0u8; UDP_MAX_MESSAGE_SIZE / 8],
-            decoder,
-            encoder,
-            storage,
+            &decoder,
+            &encoder,
+            &storage,
         );
 
         assert_eq!(response.len(), MOCKED_HEADER_SIZE + MOCKED_QUESTIONS_SIZE);
@@ -389,15 +377,15 @@ mod tests {
         ];
         let mocked_answers_len = mocked_answers.len();
 
-        let storage = Arc::new(Mutex::new(MockStorage {
+        let storage = Arc::new(RwLock::new(MockStorage {
             records_to_return: mocked_answers,
         }));
 
         let response = Server::<MockDecoderWithEDNS, MockEncoder, MockStorage>::handle(
             &[0u8; UDP_MAX_MESSAGE_SIZE / 8],
-            decoder,
-            encoder,
-            storage,
+            &decoder,
+            &encoder,
+            &storage,
         );
 
         assert_eq!(
@@ -408,12 +396,12 @@ mod tests {
 
     #[test]
     fn handle_with_edns_still_truncated() {
-        let decoder = Arc::new(MockDecoderWithEDNS);
+        let decoder = MockDecoderWithEDNS;
 
         const MOCKED_ANSWER_SIZE: usize = 1500;
-        let encoder = Arc::new(MockEncoder {
+        let encoder = MockEncoder {
             bytes_per_record: MOCKED_ANSWER_SIZE,
-        });
+        };
 
         // 3 records size = MOCKED_HEADER_SIZE + MOCKED_QUESTIONS_SIZE + 3 * 1500 = 4540 bytes
         // 4540 bytes > 4096 bytes (EDNS limit) - should truncate
@@ -423,15 +411,15 @@ mod tests {
             build_type_a_record("example.com.", "192.0.2.3"),
         ];
 
-        let storage = Arc::new(Mutex::new(MockStorage {
+        let storage = RwLock::new(MockStorage {
             records_to_return: mocked_answers,
-        }));
+        });
 
         let response = Server::<MockDecoderWithEDNS, MockEncoder, MockStorage>::handle(
             &[0u8; UDP_MAX_MESSAGE_SIZE / 8],
-            decoder,
-            encoder,
-            storage,
+            &decoder,
+            &encoder,
+            &storage,
         );
 
         assert_eq!(response.len(), MOCKED_HEADER_SIZE + MOCKED_QUESTIONS_SIZE);

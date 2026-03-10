@@ -9,9 +9,10 @@ use crate::{
         domain_name::DomainName,
         resource_record::{ResourceRecord, Type},
     },
-    storage::{InMemoryResourceRecordRepository, fallback::FallbackRepository},
+    storage::{fallback::FallbackRepository, InMemoryResourceRecordRepository},
 };
 
+mod client;
 mod common;
 mod decoder;
 mod encoder;
@@ -21,7 +22,7 @@ mod transport;
 mod utils;
 
 fn main() {
-    let mut in_memory_repository = InMemoryResourceRecordRepository::new();
+    let in_memory_repository = InMemoryResourceRecordRepository::new();
 
     in_memory_repository.save(ResourceRecord::new(
         DomainName::from("google.com"),

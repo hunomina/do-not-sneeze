@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::RwLock};
 
 use crate::{
     common::{
@@ -20,28 +20,28 @@ pub enum RepositoryError {
 
 pub trait ResourceRecordRepository {
     fn get_resource_records(
-        &mut self,
+        &self,
         question: Question,
     ) -> Result<Vec<ResourceRecord>, RepositoryError>;
 }
 
-#[derive(Clone)]
 pub struct InMemoryResourceRecordRepository {
-    inner: HashMap<DomainName, Vec<ResourceRecord>>,
+    inner: RwLock<HashMap<DomainName, Vec<ResourceRecord>>>,
 }
 
 impl InMemoryResourceRecordRepository {
     pub fn new() -> Self {
         Self {
-            inner: HashMap::new(),
+            inner: RwLock::new(HashMap::new()),
         }
     }
 }
 
 impl InMemoryResourceRecordRepository {
     // todo: what about authoritative answers and additional answers?
-    pub fn save(&mut self, resource_record: ResourceRecord) {
-        let entry = self.inner.entry(resource_record.name.clone()).or_default();
+    pub fn save(&self, resource_record: ResourceRecord) {
+        let mut inner = self.inner.write().unwrap();
+        let entry = inner.entry(resource_record.name.clone()).or_default();
         entry.push(resource_record);
     }
 }
@@ -49,10 +49,11 @@ impl InMemoryResourceRecordRepository {
 impl ResourceRecordRepository for InMemoryResourceRecordRepository {
     // todo: deal with TTLs
     fn get_resource_records(
-        &mut self,
+        &self,
         question: Question,
     ) -> Result<Vec<ResourceRecord>, RepositoryError> {
-        let entries_for_domain_name = self.inner.get(&question.name);
+        let inner = self.inner.read().unwrap();
+        let entries_for_domain_name = inner.get(&question.name);
 
         Ok(entries_for_domain_name
             .unwrap_or(&vec![])

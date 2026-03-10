@@ -1,4 +1,5 @@
 use crate::{
+    client::UdpClient,
     common::{
         Message,
         header::{Header, MessageType, QueryType, ResponseCode},
@@ -27,7 +28,7 @@ impl<T: ToSocketAddrs + Clone, D: Decoder, E: Encoder> ResourceRecordRepository
     for FallbackRepository<T, D, E>
 {
     fn get_resource_records(
-        &mut self,
+        &self,
         question: Question,
     ) -> Result<Vec<ResourceRecord>, RepositoryError> {
         //println!("Question to fallback server: {:?}", question);
@@ -57,12 +58,7 @@ fn fetch_from_other_server<T: ToSocketAddrs + Clone, D: Decoder, E: Encoder>(
     let mut buf = [0; EDNS_STANDARD_UDP_PAYLOAD_SIZE]; // could be improved by only allocating based on if EDNS is enabled
     let encode_message = encoder.encode(message);
 
-    UdpSocket::bind("0.0.0.0:0")
-        .and_then(|socket| {
-            socket.connect(fallback_server_address)?;
-            socket.send(encode_message.as_slice())?;
-            socket.recv_from(&mut buf)
-        })
+    UdpClient::request(fallback_server_address, &encode_message, &mut buf)
         .map_err(|e: Error| RepositoryError::ContactingFallbackServerError(e.to_string()))
         .and_then(|(amt, _)| {
             decoder
