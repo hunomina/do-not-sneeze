@@ -2,7 +2,7 @@ use std::{
     env,
     io::{Read, Write},
     net::{TcpListener, UdpSocket},
-    sync::{Arc, RwLock},
+    sync::Arc,
     thread,
 };
 
@@ -46,7 +46,7 @@ where
 
         let decoder = Arc::new(self.decoder);
         let encoder = Arc::new(self.encoder);
-        let storage = Arc::new(RwLock::new(self.storage));
+        let storage = Arc::new(self.storage);
 
         thread::scope(|s| {
             s.spawn(|| {
@@ -68,7 +68,7 @@ where
         });
     }
 
-    fn run_udp(decoder: Arc<D>, encoder: Arc<E>, storage: Arc<RwLock<R>>, port: u16) {
+    fn run_udp(decoder: Arc<D>, encoder: Arc<E>, storage: Arc<R>, port: u16) {
         let socket = UdpSocket::bind(format!("0.0.0.0:{}", port)).unwrap();
         println!("🚀💨 UDP DNS server running on port {}", port);
 
@@ -81,6 +81,9 @@ where
                     let encoder = Arc::clone(&encoder);
                     let storage = Arc::clone(&storage);
 
+                    // todo: unbounded thread spawning — under heavy load, this will create
+                    // an OS thread per request with no backpressure, risking resource
+                    // exhaustion. Replace with a thread pool or async runtime.
                     thread::spawn(move || {
                         let buffer = &buf[..amt];
                         let encoded_response = Self::handle(buffer, &decoder, &encoder, &storage);
@@ -95,7 +98,7 @@ where
         }
     }
 
-    fn run_tcp(decoder: Arc<D>, encoder: Arc<E>, storage: Arc<RwLock<R>>, port: u16) {
+    fn run_tcp(decoder: Arc<D>, encoder: Arc<E>, storage: Arc<R>, port: u16) {
         let listener = TcpListener::bind(format!("0.0.0.0:{}", port)).unwrap();
         println!("🚀🔗 TCP DNS server running on port {}", port);
 
@@ -104,6 +107,7 @@ where
             let encoder = Arc::clone(&encoder);
             let storage = Arc::clone(&storage);
 
+            // todo: same unbounded thread spawning issue as UDP above
             thread::spawn(move || {
                 match stream {
                     Ok(mut stream) => {
@@ -131,7 +135,7 @@ where
         }
     }
 
-    fn handle(buffer: &[u8], decoder: &D, encoder: &E, storage: &RwLock<R>) -> Vec<u8> {
+    fn handle(buffer: &[u8], decoder: &D, encoder: &E, storage: &R) -> Vec<u8> {
         let message = decoder.decode(buffer).unwrap();
 
         println!(
@@ -147,11 +151,6 @@ where
             .iter()
             .flat_map(|question| {
                 storage
-                    .read()
-                    .unwrap_or_else(|poisoned| {
-                        println!("💣🔥 Mutex poisoned, recovering: {:?}", poisoned);
-                        poisoned.into_inner()
-                    })
                     .get_resource_records(question.clone())
                     .unwrap_or_else(|e| {
                         println!("💣🔥 Error retrieving records from storage: {:?}", e);
@@ -186,12 +185,12 @@ mod tests {
     use super::*;
     use crate::{
         common::{
-            Message,
             domain_name::DomainName,
             header::{Header, MessageType, QueryType, ResponseCode},
             opt_record::OptRecord,
             question::{Class, Question, Type},
             resource_record::{ResourceRecord, Type as RRType},
+            Message,
         },
         decoder::{Decoder, DecodingError},
         encoder::Encoder,
@@ -314,9 +313,9 @@ mod tests {
             build_type_a_record("example.com.", "192.0.2.2"),
         ];
         let mocked_answers_len = mocked_answers.len();
-        let storage = RwLock::new(MockStorage {
+        let storage = MockStorage {
             records_to_return: mocked_answers,
-        });
+        };
 
         let response = Server::<MockDecoder, MockEncoder, MockStorage>::handle(
             &[0u8; UDP_MAX_MESSAGE_SIZE / 8],
@@ -345,9 +344,9 @@ mod tests {
             build_type_a_record("example.com.", "192.0.2.1"),
             build_type_a_record("example.com.", "192.0.2.2"),
         ];
-        let storage = RwLock::new(MockStorage {
+        let storage = MockStorage {
             records_to_return: mocked_answers,
-        });
+        };
 
         let response = Server::<MockDecoder, MockEncoder, MockStorage>::handle(
             &[0u8; UDP_MAX_MESSAGE_SIZE / 8],
@@ -377,9 +376,9 @@ mod tests {
         ];
         let mocked_answers_len = mocked_answers.len();
 
-        let storage = Arc::new(RwLock::new(MockStorage {
+        let storage = Arc::new(MockStorage {
             records_to_return: mocked_answers,
-        }));
+        });
 
         let response = Server::<MockDecoderWithEDNS, MockEncoder, MockStorage>::handle(
             &[0u8; UDP_MAX_MESSAGE_SIZE / 8],
@@ -411,9 +410,9 @@ mod tests {
             build_type_a_record("example.com.", "192.0.2.3"),
         ];
 
-        let storage = RwLock::new(MockStorage {
+        let storage = MockStorage {
             records_to_return: mocked_answers,
-        });
+        };
 
         let response = Server::<MockDecoderWithEDNS, MockEncoder, MockStorage>::handle(
             &[0u8; UDP_MAX_MESSAGE_SIZE / 8],
