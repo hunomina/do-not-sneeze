@@ -32,11 +32,11 @@ impl<T: ToSocketAddrs + Clone, D: Decoder, E: Encoder> ResourceRecordRepository
 {
     fn get_resource_records(
         &self,
-        question: crate::common::question::Question,
+        question: &crate::common::question::Question,
     ) -> Result<Vec<ResourceRecord>, RepositoryError> {
         let in_memory_records = self
             .in_memory_repository
-            .get_resource_records(question.clone())?;
+            .get_resource_records(question)?;
 
         if !in_memory_records.is_empty() {
             println!(

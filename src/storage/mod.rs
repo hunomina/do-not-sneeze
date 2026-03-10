@@ -21,7 +21,7 @@ pub enum RepositoryError {
 pub trait ResourceRecordRepository {
     fn get_resource_records(
         &self,
-        question: Question,
+        question: &Question,
     ) -> Result<Vec<ResourceRecord>, RepositoryError>;
 }
 
@@ -50,13 +50,17 @@ impl ResourceRecordRepository for InMemoryResourceRecordRepository {
     // todo: deal with TTLs
     fn get_resource_records(
         &self,
-        question: Question,
+        question: &Question,
     ) -> Result<Vec<ResourceRecord>, RepositoryError> {
         let inner = self.inner.read().unwrap();
         let entries_for_domain_name = inner.get(&question.name);
 
+        if entries_for_domain_name.is_none() {
+            return Ok(vec![]);
+        }
+
         Ok(entries_for_domain_name
-            .unwrap_or(&vec![])
+            .unwrap()
             .iter()
             .filter(|record| {
                 question.name == record.name

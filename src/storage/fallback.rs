@@ -1,10 +1,10 @@
 use crate::{
     client::UdpClient,
     common::{
-        Message,
         header::{Header, MessageType, QueryType, ResponseCode},
         question::Question,
         resource_record::ResourceRecord,
+        Message,
     },
     decoder::Decoder,
     encoder::Encoder,
@@ -12,11 +12,7 @@ use crate::{
     transport::EDNS_STANDARD_UDP_PAYLOAD_SIZE,
 };
 
-use std::{
-    io::Error,
-    net::{ToSocketAddrs, UdpSocket},
-    time,
-};
+use std::{io::Error, net::ToSocketAddrs, time};
 
 pub struct FallbackRepository<T: ToSocketAddrs + Clone, D: Decoder, E: Encoder> {
     pub fallback_server_address: T,
@@ -29,7 +25,7 @@ impl<T: ToSocketAddrs + Clone, D: Decoder, E: Encoder> ResourceRecordRepository
 {
     fn get_resource_records(
         &self,
-        question: Question,
+        question: &Question,
     ) -> Result<Vec<ResourceRecord>, RepositoryError> {
         //println!("Question to fallback server: {:?}", question);
 
@@ -37,7 +33,7 @@ impl<T: ToSocketAddrs + Clone, D: Decoder, E: Encoder> ResourceRecordRepository
             &self.encoder,
             &self.decoder,
             self.fallback_server_address.clone(),
-            generate_message_with_question(question),
+            generate_message_with_question(question.clone()),
         );
 
         //println!(

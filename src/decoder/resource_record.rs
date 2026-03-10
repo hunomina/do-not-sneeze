@@ -68,9 +68,7 @@ fn decode_type_aaaa_data(buffer: &[u8]) -> Vec<u8> {
 
 fn decode_type_txt_data(buffer: &[u8]) -> Vec<u8> {
     let expected_length = buffer[0] as usize;
-    String::from_utf8_lossy(&buffer[1..=expected_length])
-        .as_bytes()
-        .to_vec()
+    buffer[1..=expected_length].to_vec()
 }
 
 fn decode_type_mx_data(buffer: &[u8]) -> Vec<u8> {

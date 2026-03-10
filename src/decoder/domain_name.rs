@@ -32,8 +32,7 @@ pub fn decode<'a>(bytes: &'a [u8], source: &'a [u8]) -> (DomainName, &'a [u8]) {
 }
 
 fn from_source(source: &[u8], position: usize) -> DomainName {
-    let trimmed_source = &<&[u8]>::clone(&source)[position..];
-    decode(trimmed_source, source).0
+    decode(&source[position..], source).0
 }
 
 pub fn is_alias_flag(byte: u8) -> bool {

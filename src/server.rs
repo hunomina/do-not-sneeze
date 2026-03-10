@@ -151,7 +151,7 @@ where
             .iter()
             .flat_map(|question| {
                 storage
-                    .get_resource_records(question.clone())
+                    .get_resource_records(question)
                     .unwrap_or_else(|e| {
                         println!("💣🔥 Error retrieving records from storage: {:?}", e);
                         Default::default()
@@ -293,7 +293,7 @@ mod tests {
     impl ResourceRecordRepository for MockStorage {
         fn get_resource_records(
             &self,
-            _question: Question,
+            _question: &Question,
         ) -> Result<Vec<ResourceRecord>, RepositoryError> {
             Ok(self.records_to_return.clone())
         }
