@@ -1,6 +1,6 @@
 use crate::common::domain_name::DomainName;
 
-pub fn encode(domain_name: DomainName) -> Vec<u8> {
+pub fn encode(domain_name: &DomainName) -> Vec<u8> {
     let mut e = vec![];
 
     for label in domain_name.labels.iter() {
@@ -21,7 +21,7 @@ mod tests {
     fn encode_domain_name() {
         let origin_domain = DomainName::from("google.com");
 
-        let encoded_domain = encode(origin_domain.clone());
+        let encoded_domain = encode(&origin_domain);
         let slice = encoded_domain.as_slice();
 
         assert!(

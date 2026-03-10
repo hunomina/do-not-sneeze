@@ -12,35 +12,35 @@ mod question;
 mod resource_record;
 
 pub trait Encoder {
-    fn encode(&self, message: Message) -> Vec<u8>;
+    fn encode(&self, message: &Message) -> Vec<u8>;
 }
 
 pub struct MessageEncoder {}
 
 impl Encoder for MessageEncoder {
-    fn encode(&self, message: Message) -> Vec<u8> {
+    fn encode(&self, message: &Message) -> Vec<u8> {
         let mut r = vec![];
 
-        r.extend(encode_header(message.header));
+        r.extend(encode_header(&message.header));
 
         message
             .questions
-            .into_iter()
+            .iter()
             .for_each(|q| r.extend(encode_question(q)));
 
         message
             .answers
-            .into_iter()
+            .iter()
             .for_each(|rr| r.extend(encode_resource_record(rr)));
 
         message
             .authorities
-            .into_iter()
+            .iter()
             .for_each(|rr| r.extend(encode_resource_record(rr)));
 
         message
             .additionnals
-            .into_iter()
+            .iter()
             .for_each(|rr| r.extend(encode_resource_record(rr)));
 
         if let Some(opt) = &message.opt_record {
@@ -100,7 +100,7 @@ mod tests {
             None,
         );
 
-        let encoded_message = encoder.encode(message);
+        let encoded_message = encoder.encode(&message);
 
         let expected_encoded_message = &[
             226, 44, 129, 128, 0, 1, 0, 1, 0, 0, 0, 0, // header

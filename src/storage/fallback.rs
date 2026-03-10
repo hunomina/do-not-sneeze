@@ -56,7 +56,7 @@ fn fetch_from_other_server<T: ToSocketAddrs + Clone, D: Decoder, E: Encoder>(
     message: Message,
 ) -> Result<Message, RepositoryError> {
     let mut buf = [0; EDNS_STANDARD_UDP_PAYLOAD_SIZE]; // could be improved by only allocating based on if EDNS is enabled
-    let encode_message = encoder.encode(message);
+    let encode_message = encoder.encode(&message);
 
     UdpClient::request(fallback_server_address, &encode_message, &mut buf)
         .map_err(|e: Error| RepositoryError::ContactingFallbackServerError(e.to_string()))

@@ -8,7 +8,7 @@ use crate::{
     utils::push_u16_to_u8_vec,
 };
 
-pub fn encode(header: Header) -> Vec<u8> {
+pub fn encode(header: &Header) -> Vec<u8> {
     let mut e = vec![];
 
     push_u16_to_u8_vec(&mut e, header.id);
@@ -76,7 +76,7 @@ mod tests {
             additional_count: 0,
         };
 
-        let encoded = encode(header);
+        let encoded = encode(&header);
 
         assert_eq!(
             [226, 44, 1, 129, 0, 1, 0, 0, 0, 12, 0, 0],

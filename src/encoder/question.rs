@@ -2,10 +2,10 @@ use crate::{common::question::Question, utils::push_u16_to_u8_vec};
 
 use super::domain_name::encode as encode_domain_name;
 
-pub fn encode(question: Question) -> Vec<u8> {
+pub fn encode(question: &Question) -> Vec<u8> {
     let mut r = vec![];
 
-    r.extend(encode_domain_name(question.name));
+    r.extend(encode_domain_name(&question.name));
 
     push_u16_to_u8_vec(&mut r, question.type_.into());
     push_u16_to_u8_vec(&mut r, question.class.into());
@@ -33,7 +33,7 @@ mod tests {
                 0, 255, // type
                 0, 1, // class
             ],
-            encode(question).as_slice()
+            encode(&question).as_slice()
         );
     }
 }

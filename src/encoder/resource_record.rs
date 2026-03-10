@@ -7,10 +7,10 @@ use crate::{
 };
 
 // todo: better error handling returning Result<Vec<u8>, ..> instead
-pub fn encode(resource_record: ResourceRecord) -> Vec<u8> {
+pub fn encode(resource_record: &ResourceRecord) -> Vec<u8> {
     let mut r = vec![];
 
-    r.extend(encode_domain_name(resource_record.name));
+    r.extend(encode_domain_name(&resource_record.name));
 
     push_u16_to_u8_vec(&mut r, resource_record.type_.into());
     push_u16_to_u8_vec(&mut r, resource_record.class.into());
@@ -20,7 +20,7 @@ pub fn encode(resource_record: ResourceRecord) -> Vec<u8> {
     // Encode the resource data first to get its actual length
     let encoded_data = encode_resource_data_from_type_and_string(
         resource_record.type_,
-        resource_record.resource_data,
+        &resource_record.resource_data,
     );
 
     // Write the actual length of the encoded data
@@ -31,35 +31,35 @@ pub fn encode(resource_record: ResourceRecord) -> Vec<u8> {
     r
 }
 
-fn encode_resource_data_from_type_and_string(type_: Type, value: Vec<u8>) -> Vec<u8> {
+fn encode_resource_data_from_type_and_string(type_: Type, value: &[u8]) -> Vec<u8> {
     match type_ {
         Type::A => encode_type_a_string(value).to_vec(),
         Type::AAAA => encode_type_aaaa_string(value).to_vec(),
         Type::TXT => encode_type_txt_string(value),
-        Type::CNAME | Type::NS | Type::MX | Type::PTR => value,
+        Type::CNAME | Type::NS | Type::MX | Type::PTR => value.to_vec(),
         t => {
             println!("⏭️ Pass through record data type encoding {:?}", t);
-            value
+            value.to_vec()
         }
     }
 }
 
-fn encode_type_txt_string(value: Vec<u8>) -> Vec<u8> {
-    let s = String::from_utf8_lossy(&value);
+fn encode_type_txt_string(value: &[u8]) -> Vec<u8> {
+    let s = String::from_utf8_lossy(value);
     let mut result = Vec::with_capacity(value.len() + 1);
     // TXT records must be prefixed with a length byte
     result.push(s.len() as u8);
-    result.extend_from_slice(value.as_slice());
+    result.extend_from_slice(value);
     result
 }
 
-fn encode_type_a_string(bytes: Vec<u8>) -> [u8; 4] {
+fn encode_type_a_string(bytes: &[u8]) -> [u8; 4] {
     assert!(bytes.len() == 4, "A record must be exactly 4 bytes");
 
     Ipv4Addr::from([bytes[0], bytes[1], bytes[2], bytes[3]]).octets()
 }
 
-fn encode_type_aaaa_string(bytes: Vec<u8>) -> [u8; 16] {
+fn encode_type_aaaa_string(bytes: &[u8]) -> [u8; 16] {
     assert!(bytes.len() == 16, "AAAA record must be exactly 16 bytes");
 
     Ipv6Addr::from([
@@ -89,7 +89,7 @@ mod tests {
             vec![192, 168, 0, 1],
         );
 
-        let encoded_rr = encode(rr);
+        let encoded_rr = encode(&rr);
 
         let expected = [
             6, b'g', b'o', b'o', b'g', b'l', b'e', 3, b'c', b'o', b'm',
@@ -111,7 +111,7 @@ mod tests {
             .unwrap()
             .octets()
             .to_vec();
-        let encoded = encode_type_a_string(ipv4);
+        let encoded = encode_type_a_string(&ipv4);
 
         // Expected: length byte (11) followed by the text
         let expected = vec![192, 168, 0, 1];
@@ -122,7 +122,7 @@ mod tests {
     #[test]
     fn encode_type_txt_string_with_simple_text() {
         let text = "hello world".as_bytes().to_vec();
-        let encoded = encode_type_txt_string(text);
+        let encoded = encode_type_txt_string(&text);
 
         // Expected: length byte (11) followed by the text
         let expected = vec![
@@ -135,7 +135,7 @@ mod tests {
     #[test]
     fn encode_type_txt_string_empty() {
         let text = String::new().as_bytes().to_vec();
-        let encoded = encode_type_txt_string(text);
+        let encoded = encode_type_txt_string(&text);
 
         // Expected: just a length byte of 0
         let expected = vec![0];
@@ -147,7 +147,7 @@ mod tests {
     fn encode_type_txt_string_max_length() {
         // TXT records can have up to 255 characters per string
         let text = "a".repeat(255).as_bytes().to_vec();
-        let encoded = encode_type_txt_string(text);
+        let encoded = encode_type_txt_string(&text);
 
         // Expected: length byte (255) followed by 255 'a' characters
         assert_eq!(256, encoded.len());
@@ -166,7 +166,7 @@ mod tests {
             text_content,
         );
 
-        let encoded_rr = encode(rr);
+        let encoded_rr = encode(&rr);
 
         let expected = [
             6, b'g', b'o', b'o', b'g', b'l', b'e', 3, b'c', b'o', b'm',
@@ -190,7 +190,7 @@ mod tests {
             .unwrap()
             .octets()
             .to_vec();
-        let encoded = encode_type_aaaa_string(ipv6);
+        let encoded = encode_type_aaaa_string(&ipv6);
 
         let expected = [
             0x26, 0x07, 0xf8, 0xb0, 0x40, 0x04, 0x0c, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -207,7 +207,7 @@ mod tests {
             .unwrap()
             .octets()
             .to_vec();
-        let encoded = encode_type_aaaa_string(ipv6);
+        let encoded = encode_type_aaaa_string(&ipv6);
 
         let expected = [
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -231,7 +231,7 @@ mod tests {
                 .to_vec(),
         );
 
-        let encoded_rr = encode(rr);
+        let encoded_rr = encode(&rr);
 
         let expected = [
             6, b'g', b'o', b'o', b'g', b'l', b'e', 3, b'c', b'o', b'm',
@@ -251,7 +251,7 @@ mod tests {
     fn encode_cname_resource_record() {
         // CNAME for www.example.com pointing to example.com
         let cname_target = DomainName::from("example.com");
-        let cname_data = encode_domain_name(cname_target);
+        let cname_data = encode_domain_name(&cname_target);
 
         let rr = ResourceRecord::new(
             DomainName::from("www.example.com"),
@@ -261,7 +261,7 @@ mod tests {
             cname_data,
         );
 
-        let encoded_rr = encode(rr);
+        let encoded_rr = encode(&rr);
 
         let expected = [
             3, b'w', b'w', b'w', 7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o', b'm',
@@ -281,7 +281,7 @@ mod tests {
     fn encode_ns_resource_record() {
         // NS record for example.com pointing to ns1.example.com
         let ns_target = DomainName::from("ns1.example.com");
-        let ns_data = encode_domain_name(ns_target);
+        let ns_data = encode_domain_name(&ns_target);
 
         let rr = ResourceRecord::new(
             DomainName::from("example.com"),
@@ -291,7 +291,7 @@ mod tests {
             ns_data,
         );
 
-        let encoded_rr = encode(rr);
+        let encoded_rr = encode(&rr);
 
         let expected = [
             7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o', b'm',
@@ -311,7 +311,7 @@ mod tests {
     fn encode_mx_resource_record() {
         // MX record for example.com pointing to mail.example.com with preference 10
         let mx_exchange = DomainName::from("mail.example.com");
-        let mx_exchange_encoded = encode_domain_name(mx_exchange);
+        let mx_exchange_encoded = encode_domain_name(&mx_exchange);
 
         // MX RDATA = preference (2 bytes) + exchange (domain name)
         let mut mx_data = vec![];
@@ -326,7 +326,7 @@ mod tests {
             mx_data,
         );
 
-        let encoded_rr = encode(rr);
+        let encoded_rr = encode(&rr);
 
         let expected = [
             7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o', b'm',
@@ -349,7 +349,7 @@ mod tests {
     fn encode_ptr_resource_record() {
         // PTR record for reverse DNS: 1.0.168.192.in-addr.arpa pointing to example.com
         let ptr_target = DomainName::from("example.com");
-        let ptr_data = encode_domain_name(ptr_target);
+        let ptr_data = encode_domain_name(&ptr_target);
 
         let rr = ResourceRecord::new(
             DomainName::from("1.0.168.192.in-addr.arpa"),
@@ -359,7 +359,7 @@ mod tests {
             ptr_data,
         );
 
-        let encoded_rr = encode(rr);
+        let encoded_rr = encode(&rr);
 
         let expected = [
             1, b'1', 1, b'0', 3, b'1', b'6', b'8', 3, b'1', b'9', b'2', 7, b'i', b'n', b'-', b'a',

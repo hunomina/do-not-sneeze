@@ -162,7 +162,7 @@ where
         let mut response = message.into_response();
         response.set_answers(answers);
 
-        let mut encoded_response = encoder.encode(response.clone());
+        let mut encoded_response = encoder.encode(&response);
         let encoded_response_len = encoded_response.len();
 
         if encoded_response_len > max_message_size {
@@ -171,7 +171,7 @@ where
                 encoded_response_len, max_message_size
             );
             response = response.truncate();
-            encoded_response = encoder.encode(response);
+            encoded_response = encoder.encode(&response);
         } else {
             println!("✅ Encoded message size {}", encoded_response_len);
         }
@@ -185,12 +185,12 @@ mod tests {
     use super::*;
     use crate::{
         common::{
+            Message,
             domain_name::DomainName,
             header::{Header, MessageType, QueryType, ResponseCode},
             opt_record::OptRecord,
             question::{Class, Question, Type},
             resource_record::{ResourceRecord, Type as RRType},
-            Message,
         },
         decoder::{Decoder, DecodingError},
         encoder::Encoder,
@@ -205,7 +205,7 @@ mod tests {
     }
 
     impl Encoder for MockEncoder {
-        fn encode(&self, message: Message) -> Vec<u8> {
+        fn encode(&self, message: &Message) -> Vec<u8> {
             let mocked_answer_size = MOCKED_QUESTIONS_SIZE
                 + message.answers.len() * self.bytes_per_record
                 + message.authorities.len() * self.bytes_per_record

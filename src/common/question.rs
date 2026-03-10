@@ -7,7 +7,7 @@ pub struct Question {
     pub class: Class,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Type {
     RRType(RRType),
     AXFR,  // request for transfer of entire zone
@@ -45,7 +45,7 @@ impl From<Type> for u16 {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Class {
     IN, // the Internet
     CS, // the CSNET class (Obsolete - use IN)

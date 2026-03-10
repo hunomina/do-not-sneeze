@@ -9,7 +9,7 @@ use crate::{
         domain_name::DomainName,
         resource_record::{ResourceRecord, Type},
     },
-    storage::{fallback::FallbackRepository, InMemoryResourceRecordRepository},
+    storage::{InMemoryResourceRecordRepository, fallback::FallbackRepository},
 };
 
 mod client;
